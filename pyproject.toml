@@ -1,0 +1,15 @@
+[project]
+name = "lidl-app"
+version = "0.1.0"
+description = "A Dash web app that visualizes Lidl Plus purchase history and provides AI-powered spending insights via Ollama."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "dash>=4.1.0",
+    "lidlplus-api>=0.0.5",
+    "numpy>=2.4.6",
+    "ollama>=0.6.2",
+    "playwright>=1.60.0",
+    "plotly>=6.7.0",
+    "python-dotenv>=1.2.2",
+]
