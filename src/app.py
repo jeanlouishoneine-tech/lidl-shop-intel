@@ -82,6 +82,25 @@ def _parse_days(value: str | None) -> int | None:
     return None if n == 0 else n
 
 
+def _colors(dark: bool) -> dict[str, str]:
+    """Return a theme-aware colour palette."""
+    if dark:
+        return {
+            "bg":     "#1a1a2e",
+            "card":   "#16213e",
+            "text":   "#e0e0e0",
+            "muted":  "#a0a0b0",
+            "border": "#2a2a4a",
+        }
+    return {
+        "bg":     BG,
+        "card":   CARD_BG,
+        "text":   "#212529",
+        "muted":  "#666666",
+        "border": "#f0f0f0",
+    }
+
+
 def _error_card(exc: Exception) -> html.Div:
     return html.Div(
         [
@@ -100,14 +119,15 @@ def _error_card(exc: Exception) -> html.Div:
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
-def _kpi_card(label: str, value: str) -> html.Div:
+def _kpi_card(label: str, value: str, dark: bool = False) -> html.Div:
+    c = _colors(dark)
     return html.Div(
         [
-            html.P(label, style={"margin": 0, "fontSize": 13, "color": "#666"}),
+            html.P(label, style={"margin": 0, "fontSize": 13, "color": c["muted"]}),
             html.H3(value, style={"margin": "4px 0 0", "color": LIDL_BLUE}),
         ],
         style={
-            "background": CARD_BG,
+            "background": c["card"],
             "borderRadius": 8,
             "padding": "16px 20px",
             "boxShadow": "0 1px 4px rgba(0,0,0,.08)",
@@ -117,11 +137,12 @@ def _kpi_card(label: str, value: str) -> html.Div:
     )
 
 
-def _chart_card(graph: dcc.Graph) -> html.Div:
+def _chart_card(graph: dcc.Graph, dark: bool = False) -> html.Div:
+    c = _colors(dark)
     return html.Div(
         graph,
         style={
-            "background": CARD_BG,
+            "background": c["card"],
             "borderRadius": 8,
             "padding": 16,
             "boxShadow": "0 1px 4px rgba(0,0,0,.08)",
@@ -129,6 +150,16 @@ def _chart_card(graph: dcc.Graph) -> html.Div:
             "minWidth": 320,
         },
     )
+
+
+def _section(title: str, dark: bool = False) -> html.Div:
+    c = _colors(dark)
+    return html.Div(title, style={
+        "fontWeight": 600, "fontSize": 15, "color": LIDL_BLUE,
+        "borderBottom": f"2px solid {LIDL_YELLOW}",
+        "paddingBottom": 6, "marginTop": 28, "marginBottom": 16,
+        "background": c["bg"],
+    })
 
 
 def _sync_data() -> str:
@@ -241,6 +272,7 @@ app.layout = html.Div(
 
         # ── time filter bar ───────────────────────────────────────────────────
         html.Div(
+            id="filter-bar",
             style={
                 "background": CARD_BG, "borderBottom": "1px solid #dee2e6",
                 "padding": "10px 32px", "display": "flex", "alignItems": "center", "gap": 12,
@@ -264,6 +296,7 @@ app.layout = html.Div(
 
         # ── tabs ──────────────────────────────────────────────────────────────
         html.Div(
+            id="tabs-container",
             style={"padding": "24px 32px"},
             children=[
                 dcc.Tabs(
@@ -321,18 +354,28 @@ _DARK_OVERRIDES: dict[str, Any] = {
     "color": "#e0e0e0",
 }
 
+
 @callback(
     Output("app-root", "className"),
     Output("app-root", "style"),
     Output("theme", "data"),
+    Output("filter-bar", "style"),
+    Output("tabs-container", "style"),
     Input("theme-toggle-btn", "n_clicks"),
     State("theme", "data"),
     prevent_initial_call=True,
 )
-def toggle_theme(n_clicks: int, current_theme: str) -> tuple[str, dict, str]:
+def toggle_theme(n_clicks: int, current_theme: str) -> tuple[str, dict, str, dict, dict]:
     new_theme = "dark" if current_theme == "light" else "light"
-    style = {**_BASE_STYLE, **_DARK_OVERRIDES} if new_theme == "dark" else _BASE_STYLE
-    return f"theme-{new_theme}", style, new_theme
+    dark = new_theme == "dark"
+    c = _colors(dark)
+    root_style = {**_BASE_STYLE, **_DARK_OVERRIDES} if dark else _BASE_STYLE
+    filter_bar_style = {
+        "background": c["card"], "borderBottom": f"1px solid {c['border']}",
+        "padding": "10px 32px", "display": "flex", "alignItems": "center", "gap": 12,
+    }
+    tabs_container_style = {"padding": "24px 32px", "background": c["bg"]}
+    return f"theme-{new_theme}", root_style, new_theme, filter_bar_style, tabs_container_style
 
 
 @callback(
@@ -340,18 +383,20 @@ def toggle_theme(n_clicks: int, current_theme: str) -> tuple[str, dict, str]:
     Input("tabs", "value"),
     Input("db-version", "data"),
     Input("time-filter", "value"),
+    State("theme", "data"),
 )
-def render_tab(tab: str, _version: int | None, time_value: str | None) -> Any:
+def render_tab(tab: str, _version: int | None, time_value: str | None, theme: str | None) -> Any:
     try:
         days = _parse_days(time_value)
+        dark = (theme == "dark")
         if tab == "overview":
-            return _overview_tab(days)
+            return _overview_tab(days, dark)
         if tab == "items":
-            return _items_tab(days)
+            return _items_tab(days, dark)
         if tab == "offers":
-            return _offers_tab(days)
+            return _offers_tab(days, dark)
         if tab == "ai":
-            return _ai_tab()
+            return _ai_tab(dark)
         return html.Div("Unknown tab")
     except Exception as exc:
         logger.exception("render_tab failed for tab=%s", tab)
@@ -360,7 +405,8 @@ def render_tab(tab: str, _version: int | None, time_value: str | None) -> Any:
 
 # ── tab renderers ─────────────────────────────────────────────────────────────
 
-def _overview_tab(days: int | None) -> Any:
+def _overview_tab(days: int | None, dark: bool = False) -> Any:
+    c = _colors(dark)
     currency = CURRENCY
     period   = PERIOD_LABEL.get(days, f"last {days} days")
 
@@ -382,7 +428,8 @@ def _overview_tab(days: int | None) -> Any:
         fig.update_layout(
             title=f"Daily spend — {period}",
             xaxis_title="Date", yaxis_title=CURRENCY,
-            plot_bgcolor=CARD_BG, paper_bgcolor=CARD_BG,
+            plot_bgcolor=c["card"], paper_bgcolor=c["card"],
+            font=dict(color=c["text"]),
             margin=dict(l=0, r=0, t=40, b=0),
             hovermode="x unified",
         )
@@ -393,21 +440,21 @@ def _overview_tab(days: int | None) -> Any:
         )
     else:
         chart = html.P("No data yet — click Sync Data to fetch your receipts.",
-                       style={"color": "#888"})
+                       style={"color": c["muted"]})
 
     return html.Div([
         html.Div(
             style={"display": "flex", "gap": 16, "flexWrap": "wrap", "marginBottom": 24},
             children=[
-                _kpi_card("Total spent",      f"{currency} {spent:.2f}"),
-                _kpi_card("Visits",           str(visits)),
-                _kpi_card("Avg per visit",    f"{currency} {avg:.2f}"),
-                _kpi_card("Biggest shop",     f"{currency} {biggest:.2f}"),
-                _kpi_card("Total discounts",  f"{currency} {discounts:.2f}"),
+                _kpi_card("Total spent",      f"{currency} {spent:.2f}",  dark),
+                _kpi_card("Visits",           str(visits),                 dark),
+                _kpi_card("Avg per visit",    f"{currency} {avg:.2f}",    dark),
+                _kpi_card("Biggest shop",     f"{currency} {biggest:.2f}", dark),
+                _kpi_card("Total discounts",  f"{currency} {discounts:.2f}", dark),
             ],
         ),
         html.Div(chart, style={
-            "background": CARD_BG, "borderRadius": 8,
+            "background": c["card"], "borderRadius": 8,
             "padding": 16, "boxShadow": "0 1px 4px rgba(0,0,0,.08)",
         }),
         html.Div(id="day-detail", style={"marginTop": 20}),
@@ -488,7 +535,7 @@ def _family_stem(name: str) -> str:
     import re
     import unicodedata
     s = unicodedata.normalize("NFKD", name)
-    s = "".join(c for c in s if not unicodedata.combining(c)).lower()
+    s = "".join(ch for ch in s if not unicodedata.combining(ch)).lower()
     s = _SIZE_RE.sub(" ", s)
     s = re.sub(r"[^a-z0-9 ]", " ", s)
     for w in s.split():
@@ -501,17 +548,14 @@ def _build_value_analysis(days: int | None) -> str:
     """Structured facts on variant swaps, pack-size value, rising prices, cheapest-ever."""
     all_prices = db.item_avg_prices(days)
 
-    # Group into candidate families by first significant word.
     families: dict[str, list[dict]] = {}
     for s in all_prices:
         stem = _family_stem(s["name"])
         if stem:
             families.setdefault(stem, []).append(s)
 
-    # 1 + 2. Variant swaps and pack-size value (families with >= 2 variants).
     swap_lines, pack_lines = [], []
     for stem, variants in families.items():
-        # Variant swaps: only consider variants bought a meaningful number of times.
         common = sorted((v for v in variants if v["frequency"] >= 3),
                         key=lambda v: v["avg_price"])
         if len(common) >= 2 and common[-1]["avg_price"] - common[0]["avg_price"] >= 0.30:
@@ -520,7 +564,6 @@ def _build_value_analysis(days: int | None) -> str:
             swap_lines.append((common[0]["frequency"] + common[-1]["frequency"],
                                f"  - {stem}: " + " vs ".join(parts)))
 
-        # Pack-size value: any sized variants (these tend to be lower-frequency).
         per_unit = []
         for v in variants:
             if v["frequency"] < 2:
@@ -534,17 +577,14 @@ def _build_value_analysis(days: int | None) -> str:
             pack_lines.append(f"  - {stem}: " + " vs ".join(parts) +
                               f"  (best value: {per_unit[0][0]})")
 
-    # Most-bought families first for the swap list.
     swap_lines = [line for _, line in sorted(swap_lines, key=lambda x: x[0], reverse=True)]  # type: ignore[misc]
 
-    # 3. Rising prices.
     rising = [t for t in db.price_trends(days, min_dates=3) if t["pct_change"] > 0][:6]
     rising_lines = [
         f'  - {t["name"]}: {CURRENCY} {t["first_price"]:.2f} → {t["last_price"]:.2f} (+{t["pct_change"]:.0f}%)'
         for t in rising
     ]
 
-    # 4. Cheapest-ever reference for top staples.
     ref_lines = [
         f'  - {s["name"]}: usually {CURRENCY} {s["avg_price"]:.2f}, lowest {CURRENCY} {s["min_price"]:.2f}, '
         f'last paid {CURRENCY} {s["last_price"]:.2f}'
@@ -578,7 +618,6 @@ def _build_deals_summary(days: int | None) -> str:
     if not all_deals:
         return "DEALS: none loaded (the shopper hasn't synced offers/coupons yet)."
 
-    # One deal can match several similar items; keep only the most-bought match per deal.
     best_per_deal: dict[str, tuple[dict, dict]] = {}
     for item, deal in _match_deals(purchased, all_deals):
         existing = best_per_deal.get(deal["id"])
@@ -626,11 +665,12 @@ def _build_deals_summary(days: int | None) -> str:
 
 
 def _deal_cards(deals: list[dict], matched_titles: set[str],
-                kind: str, currency: str = CURRENCY) -> list[html.Div]:
+                kind: str, currency: str = CURRENCY, dark: bool = False) -> list[html.Div]:
+    c = _colors(dark)
     cards = []
     for d in deals:
         is_match = d["title"] in matched_titles
-        border   = f"2px solid {LIDL_YELLOW}" if is_match else "1px solid #e0e0e0"
+        border   = f"2px solid {LIDL_YELLOW}" if is_match else f"1px solid {c['border']}"
         yours_badge = html.Span("✓ Yours", style={
             "background": LIDL_YELLOW, "color": LIDL_BLUE,
             "fontSize": 10, "fontWeight": 700, "padding": "1px 6px",
@@ -650,7 +690,7 @@ def _deal_cards(deals: list[dict], matched_titles: set[str],
             if op:
                 price_parts.append(html.Span(f"{currency} {op:.2f} ", style={"fontWeight":700,"color":LIDL_BLUE,"fontSize":15}))
             if orip:
-                price_parts.append(html.Span(f"{currency} {orip:.2f}", style={"textDecoration":"line-through","color":"#aaa","fontSize":12}))
+                price_parts.append(html.Span(f"{currency} {orip:.2f}", style={"textDecoration":"line-through","color":c["muted"],"fontSize":12}))
             if op and orip and orip > op:
                 price_parts.append(html.Span(f" save {currency} {orip - op:.2f}", style={"color":"#2a9d2a","fontSize":11,"marginLeft":4}))
             price_block: Any = html.Div(price_parts, style={"margin":"4px 0"})
@@ -669,7 +709,7 @@ def _deal_cards(deals: list[dict], matched_titles: set[str],
                     "✓ Activated — Deactivate",
                     id={"type": "coupon-btn", "index": f"{promo_id}|deactivate"},
                     style={"fontSize":11,"padding":"4px 10px","cursor":"pointer","marginTop":6,
-                           "background":"#f0f0f0","border":"1px solid #ccc","borderRadius":4,"color":"#555"},
+                           "background": c["bg"],"border":f"1px solid {c['border']}","borderRadius":4,"color":c["text"]},
                 )
             else:
                 action = html.Button(
@@ -682,27 +722,28 @@ def _deal_cards(deals: list[dict], matched_titles: set[str],
         until = _format_date(d.get("valid_until",""))
 
         cards.append(html.Div(
-            style={"background":CARD_BG,"border":border,"borderRadius":8,"padding":"12px 14px",
+            style={"background": c["card"],"border":border,"borderRadius":8,"padding":"12px 14px",
                    "minWidth":190,"flex":"1 1 190px","maxWidth":260,
-                   "boxShadow":"0 1px 3px rgba(0,0,0,.06)"},
+                   "boxShadow":"0 1px 3px rgba(0,0,0,.06)", "color": c["text"]},
             children=[
                 html.Div([disc_badge, yours_badge], style={"marginBottom":6,"display":"flex","gap":4,"flexWrap":"wrap"}),
                 html.Div(d["title"], style={"fontWeight":600,"fontSize":13,"marginBottom":2}),
-                html.Div(desc, style={"fontSize":11,"color":"#666","marginBottom":2}) if desc else "",
+                html.Div(desc, style={"fontSize":11,"color":c["muted"],"marginBottom":2}) if desc else "",
                 price_block,
-                html.Div(f"Until {until}" if until else "", style={"fontSize":11,"color":"#999","marginTop":4}),
+                html.Div(f"Until {until}" if until else "", style={"fontSize":11,"color":c["muted"],"marginTop":4}),
                 action or "",
             ],
         ))
     return cards
 
 
-def _offers_tab(days: int | None) -> Any:
+def _offers_tab(days: int | None, dark: bool = False) -> Any:
+    c = _colors(dark)
     store_id = os.getenv("LIDL_STORE_ID", "")
     if not store_id:
         return html.Div([
             html.P("⚠️ No store ID configured.", style={"fontWeight": 600}),
-            html.P("Add LIDL_STORE_ID=CH0187 to your .env then click ↻ Sync Data.", style={"color": "#555"}),
+            html.P("Add LIDL_STORE_ID=CH0187 to your .env then click ↻ Sync Data.", style={"color": c["muted"]}),
         ])
 
     cur_offers  = db.current_offers()
@@ -711,14 +752,14 @@ def _offers_tab(days: int | None) -> Any:
     upd_coupons = db.upcoming_coupons()
 
     if not cur_offers and not cur_coupons and not upd_offers and not upd_coupons:
-        return html.P("No deals loaded yet — click ↻ Sync Data.", style={"color": "#888"})
+        return html.P("No deals loaded yet — click ↻ Sync Data.", style={"color": c["muted"]})
 
     currency  = CURRENCY
     purchased = db.purchased_article_ids(days)
 
     all_deals = (
         [{"kind": "offer",  **o} for o in cur_offers + upd_offers] +
-        [{"kind": "coupon", **c} for c in cur_coupons + upd_coupons]
+        [{"kind": "coupon", **c_} for c_ in cur_coupons + upd_coupons]
     )
     matched = _match_deals(purchased, all_deals)
     matched_sorted = sorted(matched, key=lambda x: x[0]["frequency"], reverse=True)
@@ -726,10 +767,10 @@ def _offers_tab(days: int | None) -> Any:
     matched_offer_titles  = {d["title"] for _, d in matched if d.get("kind") == "offer"}
     matched_coupon_titles = {d["title"] for _, d in matched if d.get("kind") == "coupon"}
 
-    # ── Section 1: Your deals ─────────────────────────────────────────────────
     th = {"padding": "8px 12px", "background": LIDL_BLUE, "color": "white",
           "fontSize": 13, "textAlign": "left"}
-    td = {"padding": "7px 12px", "fontSize": 13, "borderBottom": "1px solid #f0f0f0"}
+    td = {"padding": "7px 12px", "fontSize": 13, "borderBottom": f"1px solid {c['border']}",
+          "color": c["text"]}
     tdr = {**td, "textAlign": "right"}
 
     def _save_str(deal):
@@ -779,42 +820,42 @@ def _offers_tab(days: int | None) -> Any:
     your_deals = html.Div(
         html.Table(deal_rows, style={"width": "100%", "borderCollapse": "collapse"}),
         style={"overflowX": "auto"},
-    ) if matched_sorted else html.P("No active deals match your purchase history.", style={"color": "#888"})
+    ) if matched_sorted else html.P("No active deals match your purchase history.", style={"color": c["muted"]})
 
-    # ── Section helpers ───────────────────────────────────────────────────────
     def _cards_block(deals, kind):
-        matched_titles = matched_offer_titles if kind == "offer" else matched_coupon_titles
-        cards = _deal_cards(deals, matched_titles, kind, currency)
+        mt = matched_offer_titles if kind == "offer" else matched_coupon_titles
+        cards = _deal_cards(deals, mt, kind, currency, dark)
         return html.Div(cards, style={"display": "flex", "gap": 10, "flexWrap": "wrap"})
 
     def _sub_section(label, deals, kind):
         if not deals:
             return html.Div()
         return html.Div([
-            html.Div(label, style={"fontWeight": 600, "fontSize": 13, "color": "#555",
+            html.Div(label, style={"fontWeight": 600, "fontSize": 13, "color": c["muted"],
                                    "marginBottom": 10}),
             _cards_block(deals, kind),
         ], style={"marginBottom": 20})
 
     return html.Div([
-        _section(f"🎯 Your deals ({len(matched)} matches)"),
-        html.Div(your_deals, style={"background": CARD_BG, "borderRadius": 8, "padding": 16,
+        _section(f"🎯 Your deals ({len(matched)} matches)", dark),
+        html.Div(your_deals, style={"background": c["card"], "borderRadius": 8, "padding": 16,
                                      "boxShadow": "0 1px 4px rgba(0,0,0,.08)", "marginBottom": 8}),
 
-        _section(f"🎟 Coupons  ({len(cur_coupons)} active · {len(upd_coupons)} upcoming)"),
+        _section(f"🎟 Coupons  ({len(cur_coupons)} active · {len(upd_coupons)} upcoming)", dark),
         _sub_section(f"Active ({len(cur_coupons)})",   cur_coupons, "coupon"),
         _sub_section(f"Coming soon ({len(upd_coupons)})", upd_coupons, "coupon"),
 
-        _section(f"🏷 Store offers  ({len(cur_offers)} active · {len(upd_offers)} upcoming)"),
+        _section(f"🏷 Store offers  ({len(cur_offers)} active · {len(upd_offers)} upcoming)", dark),
         _sub_section(f"Active ({len(cur_offers)})",    cur_offers,  "offer"),
         _sub_section(f"Coming soon ({len(upd_offers)})",  upd_offers,  "offer"),
     ])
 
 
-def _price_trends_charts(days: int | None) -> Any:
+def _price_trends_charts(days: int | None, dark: bool = False) -> Any:
+    c = _colors(dark)
     trends = db.price_trends(days=days, min_dates=3)
     going_up   = [t for t in trends if t["pct_change"] >  1][:10]
-    going_down = [t for t in trends if t["pct_change"] < -1][-10:][::-1]  # most negative first
+    going_down = [t for t in trends if t["pct_change"] < -1][-10:][::-1]
 
     def _hover(t):
         return (f"{t['name']}<br>"
@@ -824,7 +865,7 @@ def _price_trends_charts(days: int | None) -> Any:
     if not going_up and not going_down:
         return html.P(
             "Not enough price history in this period (need ≥3 purchases per item).",
-            style={"color": "#888"},
+            style={"color": c["muted"]},
         )
 
     charts = []
@@ -845,10 +886,11 @@ def _price_trends_charts(days: int | None) -> Any:
             title="↑ Trending up",
             xaxis_title="Price change %",
             yaxis={"categoryorder": "total ascending"},
-            plot_bgcolor=CARD_BG, paper_bgcolor=CARD_BG,
+            plot_bgcolor=c["card"], paper_bgcolor=c["card"],
+            font=dict(color=c["text"]),
             margin=dict(l=0, r=0, t=40, b=0), height=max(260, len(going_up) * 38),
         )
-        charts.append(_chart_card(dcc.Graph(figure=up_fig, config={"displayModeBar": False})))
+        charts.append(_chart_card(dcc.Graph(figure=up_fig, config={"displayModeBar": False}), dark))
 
     if going_down:
         dn_fig = go.Figure(go.Bar(
@@ -866,31 +908,24 @@ def _price_trends_charts(days: int | None) -> Any:
             title="↓ Trending down",
             xaxis_title="Price change %",
             yaxis={"categoryorder": "total ascending"},
-            plot_bgcolor=CARD_BG, paper_bgcolor=CARD_BG,
+            plot_bgcolor=c["card"], paper_bgcolor=c["card"],
+            font=dict(color=c["text"]),
             margin=dict(l=0, r=0, t=40, b=0), height=max(260, len(going_down) * 38),
         )
-        charts.append(_chart_card(dcc.Graph(figure=dn_fig, config={"displayModeBar": False})))
+        charts.append(_chart_card(dcc.Graph(figure=dn_fig, config={"displayModeBar": False}), dark))
 
     return html.Div(charts, style={"display": "flex", "gap": 16, "flexWrap": "wrap"})
 
 
-def _section(title: str) -> html.Div:
-    return html.Div(title, style={
-        "fontWeight": 600, "fontSize": 15, "color": LIDL_BLUE,
-        "borderBottom": f"2px solid {LIDL_YELLOW}",
-        "paddingBottom": 6, "marginTop": 28, "marginBottom": 16,
-    })
-
-
-def _items_tab(days: int | None) -> Any:
+def _items_tab(days: int | None, dark: bool = False) -> Any:
+    c = _colors(dark)
     period    = PERIOD_LABEL.get(days, f"last {days} days")
     top_freq  = db.top_items_by_frequency(limit=15, days=days)
     top_spend = db.top_items_by_spend(limit=15, days=days)
 
     if not top_freq:
-        return html.P("No item data for this period.", style={"color": "#888"})
+        return html.P("No item data for this period.", style={"color": c["muted"]})
 
-    # ── shopping patterns ─────────────────────────────────────────────────────
     monthly = db.monthly_spend(days)
     monthly_fig = go.Figure(go.Bar(
         x=[r["month"]  for r in monthly],
@@ -901,7 +936,8 @@ def _items_tab(days: int | None) -> Any:
     monthly_fig.update_layout(
         title=f"Monthly spend — {period}",
         xaxis_title="Month", yaxis_title=CURRENCY,
-        plot_bgcolor=CARD_BG, paper_bgcolor=CARD_BG,
+        plot_bgcolor=c["card"], paper_bgcolor=c["card"],
+        font=dict(color=c["text"]),
         margin=dict(l=0, r=0, t=40, b=0), height=280,
     )
 
@@ -916,11 +952,11 @@ def _items_tab(days: int | None) -> Any:
     weekday_fig.update_layout(
         title=f"Visits by day of week — {period}",
         yaxis_title="Visits",
-        plot_bgcolor=CARD_BG, paper_bgcolor=CARD_BG,
+        plot_bgcolor=c["card"], paper_bgcolor=c["card"],
+        font=dict(color=c["text"]),
         margin=dict(l=0, r=0, t=40, b=0), height=280,
     )
 
-    # ── top items ─────────────────────────────────────────────────────────────
     freq_fig = go.Figure(go.Bar(
         x=[r["frequency"] for r in top_freq],
         y=[r["name"]      for r in top_freq],
@@ -931,7 +967,8 @@ def _items_tab(days: int | None) -> Any:
         title=f"Most frequently bought — {period}",
         xaxis_title="Times bought",
         yaxis={"categoryorder": "total ascending"},
-        plot_bgcolor=CARD_BG, paper_bgcolor=CARD_BG,
+        plot_bgcolor=c["card"], paper_bgcolor=c["card"],
+        font=dict(color=c["text"]),
         margin=dict(l=0, r=0, t=40, b=0), height=460,
     )
 
@@ -951,15 +988,16 @@ def _items_tab(days: int | None) -> Any:
         title=f"Highest total spend — {period}",
         xaxis_title=f"{CURRENCY} spent",
         yaxis={"categoryorder": "total ascending"},
-        plot_bgcolor=CARD_BG, paper_bgcolor=CARD_BG,
+        plot_bgcolor=c["card"], paper_bgcolor=c["card"],
+        font=dict(color=c["text"]),
         margin=dict(l=0, r=0, t=40, b=0), height=460,
     )
 
-    # ── staples ───────────────────────────────────────────────────────────────
     staples = db.staple_items(days=days, min_pct=20)
     th_s = {"padding": "8px 12px", "background": LIDL_BLUE, "color": "white",
             "fontSize": 13, "textAlign": "left"}
-    td_s = {"padding": "6px 12px", "fontSize": 13, "borderBottom": "1px solid #f0f0f0"}
+    td_s = {"padding": "6px 12px", "fontSize": 13, "borderBottom": f"1px solid {c['border']}",
+            "color": c["text"]}
     td_r = {**td_s, "textAlign": "right"}
     staples_table = html.Div(
         html.Table(
@@ -973,50 +1011,44 @@ def _items_tab(days: int | None) -> Any:
                 html.Td(r["name"],                           style=td_s),
                 html.Td(str(r["visits"]),                    style=td_r),
                 html.Td(f"{r['pct']}%",                      style=td_r),
-                html.Td(f"{CURRENCY} {r['total_spent']:.2f}",       style=td_r),
+                html.Td(f"{CURRENCY} {r['total_spent']:.2f}", style=td_r),
             ]) for r in staples],
             style={"width": "100%", "borderCollapse": "collapse"},
         ),
-        style={"background": CARD_BG, "borderRadius": 8, "padding": 16,
+        style={"background": c["card"], "borderRadius": 8, "padding": 16,
                "boxShadow": "0 1px 4px rgba(0,0,0,.08)", "overflowX": "auto"},
-    ) if staples else html.P("No staples found for this period.", style={"color": "#888"})
+    ) if staples else html.P("No staples found for this period.", style={"color": c["muted"]})
 
-    # ── price tracker ─────────────────────────────────────────────────────────
-    # Use item_price_stats (grouped by art_id) so each dropdown entry maps to
-    # one unique product — avoids merging two products with the same display name.
     item_options = [
-        {
-            "label": r["name"],
-            "value": r["item_key"],
-        }
+        {"label": r["name"], "value": r["item_key"]}
         for r in db.item_price_stats(limit=100, days=days)
     ]
 
     return html.Div([
-        _section("Shopping patterns"),
+        _section("Shopping patterns", dark),
         html.Div(
             style={"display": "flex", "gap": 16, "flexWrap": "wrap"},
             children=[
-                _chart_card(dcc.Graph(figure=monthly_fig, config={"displayModeBar": False})),
-                _chart_card(dcc.Graph(figure=weekday_fig, config={"displayModeBar": False})),
+                _chart_card(dcc.Graph(figure=monthly_fig, config={"displayModeBar": False}), dark),
+                _chart_card(dcc.Graph(figure=weekday_fig, config={"displayModeBar": False}), dark),
             ],
         ),
 
-        _section("Top items"),
+        _section("Top items", dark),
         html.Div(
             style={"display": "flex", "gap": 16, "flexWrap": "wrap"},
             children=[
-                _chart_card(dcc.Graph(figure=freq_fig,  config={"displayModeBar": False})),
-                _chart_card(dcc.Graph(figure=spend_fig, config={"displayModeBar": False})),
+                _chart_card(dcc.Graph(figure=freq_fig,  config={"displayModeBar": False}), dark),
+                _chart_card(dcc.Graph(figure=spend_fig, config={"displayModeBar": False}), dark),
             ],
         ),
 
-        _section("Your staples  (bought on ≥20% of trips)"),
+        _section("Your staples  (bought on ≥20% of trips)", dark),
         staples_table,
 
-        _section("Price tracker"),
+        _section("Price tracker", dark),
         html.P("Select an item to see how its unit price has changed over time.",
-               style={"color": "#555", "marginBottom": 8}),
+               style={"color": c["muted"], "marginBottom": 8}),
         dcc.Dropdown(
             id="price-item-selector",
             options=item_options,
@@ -1027,24 +1059,23 @@ def _items_tab(days: int | None) -> Any:
         ),
         html.Div(id="price-tracker-chart", style={"marginTop": 12}),
 
-        _section("Price trends"),
+        _section("Price trends", dark),
         html.P(
             "Items with the biggest price movement between their first and most recent purchase "
             "(minimum 3 distinct purchase dates).",
-            style={"color": "#555", "marginBottom": 16},
+            style={"color": c["muted"], "marginBottom": 16},
         ),
-        _price_trends_charts(days),
+        _price_trends_charts(days, dark),
     ])
 
 
-
-
-def _ai_tab() -> Any:
+def _ai_tab(dark: bool = False) -> Any:
+    c = _colors(dark)
     return html.Div([
         html.P(
             "Ask the local AI (llama3.2) to analyse your spending and flag the active & upcoming "
             "offers and coupons worth acting on for the selected time period.",
-            style={"color": "#555"},
+            style={"color": c["muted"]},
         ),
         html.Button(
             "Analyse my spending", id="ai-btn", n_clicks=0,
@@ -1065,10 +1096,13 @@ def _ai_tab() -> Any:
     Output("ai-output", "children"),
     Input("ai-btn", "n_clicks"),
     State("time-filter", "value"),
+    State("theme", "data"),
     prevent_initial_call=True,
 )
-def run_ai(n_clicks: int, time_value: str | None) -> Any:
+def run_ai(n_clicks: int, time_value: str | None, theme: str | None) -> Any:
     try:
+        dark = (theme == "dark")
+        c = _colors(dark)
         days    = _parse_days(time_value)
         summary = db.spending_summary_text(days=days, currency=CURRENCY)
         value   = _build_value_analysis(days)
@@ -1077,9 +1111,9 @@ def run_ai(n_clicks: int, time_value: str | None) -> Any:
         return dcc.Markdown(
             result,
             style={
-                "background": CARD_BG, "borderRadius": 8, "padding": "4px 20px",
+                "background": c["card"], "borderRadius": 8, "padding": "4px 20px",
                 "boxShadow": "0 1px 4px rgba(0,0,0,.08)",
-                "lineHeight": 1.6, "fontSize": 14,
+                "lineHeight": 1.6, "fontSize": 14, "color": c["text"],
             },
         )
     except Exception as exc:
@@ -1093,17 +1127,20 @@ def run_ai(n_clicks: int, time_value: str | None) -> Any:
     Output("price-tracker-chart", "children"),
     Input("price-item-selector", "value"),
     State("time-filter", "value"),
+    State("theme", "data"),
     prevent_initial_call=True,
 )
-def update_price_tracker(item_name: str | None, time_value: str | None) -> Any:
+def update_price_tracker(item_name: str | None, time_value: str | None, theme: str | None) -> Any:
     try:
         if not item_name:
             return None
+        dark = (theme == "dark")
+        c = _colors(dark)
         days    = _parse_days(time_value)
         history = db.price_history_for_item(item_name, days)
         if not history:
             return html.P("No price history for this item in the selected period.",
-                          style={"color": "#888"})
+                          style={"color": c["muted"]})
 
         dates  = [r["date"]  for r in history]
         prices = [r["price"] for r in history]
@@ -1123,10 +1160,11 @@ def update_price_tracker(item_name: str | None, time_value: str | None) -> Any:
         fig.update_layout(
             title=f"Unit price history — {item_name}",
             xaxis_title="Date", yaxis_title=CURRENCY,
-            plot_bgcolor=CARD_BG, paper_bgcolor=CARD_BG,
+            plot_bgcolor=c["card"], paper_bgcolor=c["card"],
+            font=dict(color=c["text"]),
             margin=dict(l=0, r=0, t=40, b=0), height=300,
         )
-        return _chart_card(dcc.Graph(figure=fig, config={"displayModeBar": False}))
+        return _chart_card(dcc.Graph(figure=fig, config={"displayModeBar": False}), dark)
     except Exception as exc:
         logger.exception("update_price_tracker failed")
         return _error_card(exc)
@@ -1174,17 +1212,20 @@ def toggle_coupon(n_clicks_list: list[int | None], version: int) -> tuple[Any, A
 @callback(
     Output("day-detail", "children"),
     Input("trend-chart", "clickData"),
+    State("theme", "data"),
     prevent_initial_call=True,
 )
-def show_day_detail(click_data: dict[str, Any] | None) -> Any:
+def show_day_detail(click_data: dict[str, Any] | None, theme: str | None) -> Any:
     try:
         if not click_data:
             return None
 
+        dark = (theme == "dark")
+        c = _colors(dark)
         date = click_data["points"][0]["x"]
         receipts = db.receipts_for_date(date)
         if not receipts:
-            return html.P(f"No receipts found for {date}.", style={"color": "#888"})
+            return html.P(f"No receipts found for {date}.", style={"color": c["muted"]})
 
         sections = []
         for receipt in receipts:
@@ -1195,7 +1236,8 @@ def show_day_detail(click_data: dict[str, Any] | None) -> Any:
                 "padding": "8px 12px", "textAlign": "left",
                 "background": LIDL_BLUE, "color": "white", "fontSize": 13,
             }
-            td_style = {"padding": "6px 12px", "fontSize": 13, "borderBottom": "1px solid #f0f0f0"}
+            td_style = {"padding": "6px 12px", "fontSize": 13,
+                        "borderBottom": f"1px solid {c['border']}", "color": c["text"]}
             td_num   = {**td_style, "textAlign": "right"}
 
             rows = [
@@ -1227,9 +1269,8 @@ def show_day_detail(click_data: dict[str, Any] | None) -> Any:
                     ),
                 ]))
 
-            # totals footer
             rows.append(html.Tr([
-                html.Td(f"{len(items)} items", style={**td_style, "fontWeight": 600, "color": "#666"}),
+                html.Td(f"{len(items)} items", style={**td_style, "fontWeight": 600, "color": c["muted"]}),
                 html.Td("", style=td_num),
                 html.Td("Total", style={**td_num, "fontWeight": 600}),
                 html.Td(f"{currency} {receipt['total']:.2f}",
@@ -1246,7 +1287,7 @@ def show_day_detail(click_data: dict[str, Any] | None) -> Any:
         return html.Div(
             sections,
             style={
-                "background": CARD_BG, "borderRadius": 8, "padding": 20,
+                "background": c["card"], "borderRadius": 8, "padding": 20,
                 "boxShadow": "0 1px 4px rgba(0,0,0,.08)",
             },
         )
