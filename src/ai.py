@@ -14,6 +14,24 @@ _OLLAMA_HOST = "http://localhost:11434"
 _DEFAULT_MODEL = "llama3.2"
 
 def _system_prompt(currency: str) -> str:
+    """
+    Build the system prompt for the Ollama model.
+
+    Instructs the model to produce exactly five markdown sections:
+      1. Spending Snapshot   — total, visits, basket composition
+      2. Smarter Buying      — variant swaps, pack-size value, cheapest-ever
+      3. Grab This Trip      — active deals on regular purchases
+      4. Plan Ahead          — upcoming deals and rising-price staples
+      5. Standout Deals      — deep discounts (≥40%) outside usual items
+
+    The user message sent alongside this prompt is assembled in app.py from:
+      - db.spending_summary_text()   → purchase history
+      - _build_value_analysis()      → variant/pack/price trend facts
+      - _build_deals_summary()       → matched + standout deals text
+
+    CRITICAL: the model must only reference prices and names that appear
+    verbatim in the data — it must never invent figures.
+    """
     return f"""You are a personal finance assistant helping a Lidl shopper spend more wisely.
 You receive their recent purchase summary, a value-analysis block (variant swaps, pack-size value,
 rising prices, cheapest-ever reference), and active/upcoming offers & coupons (deals on items they
@@ -70,7 +88,7 @@ def get_spending_insights(spending_summary: str, deals_summary: str,
                 {"role": "user", "content": user_message},
             ],
         )
-        return response.message.content
+        return response.message.content or ""
     except ResponseError as exc:
         if "model" in str(exc).lower():
             return (

@@ -3,11 +3,19 @@ Thin wrapper around lidlplus-api. Loads credentials from .env and exposes
 clean methods for the rest of the app to use.
 """
 import html as _html
+import logging
 import os
 import re
 import sys
 from html.parser import HTMLParser
 from pathlib import Path
+
+from dotenv import load_dotenv
+from lidlplus_api import LidlPlusApi
+
+load_dotenv(Path(__file__).parent.parent / ".env")
+
+logger = logging.getLogger(__name__)
 
 # Matches Lidl's quantity breakdown lines in two formats:
 #   count items : "2 x 6.49"
@@ -17,13 +25,9 @@ _BREAKDOWN_RE = re.compile(
     re.IGNORECASE,
 )
 
-from dotenv import load_dotenv
-from lidlplus_api import LidlPlusApi
-
-load_dotenv(Path(__file__).parent.parent / ".env")
-
 
 def _client() -> LidlPlusApi:
+    """Build an authenticated LidlPlusApi client from .env credentials. Exits if token is missing."""
     token = os.getenv("LIDL_REFRESH_TOKEN", "")
     if not token:
         sys.exit(
@@ -53,19 +57,20 @@ def fetch_receipt_headers(max_pages: int = 20) -> list[dict]:
 
 def fetch_receipt_detail(ticket_id: str) -> dict:
     """Return a single receipt with full line-item detail."""
-    return _client().receipt(ticket_id)
+    return dict(_client().receipt(ticket_id))
 
 
 # ── stores ───────────────────────────────────────────────────────────────────
 
 def fetch_stores() -> list[dict]:
     """Return all Lidl stores (no auth required)."""
-    return _client().get_stores()
+    return list(_client().get_stores())
 
 
 # ── offers & coupons ─────────────────────────────────────────────────────────
 
 def _store_id() -> str | None:
+    """Return LIDL_STORE_ID from env, or None if not set."""
     return os.getenv("LIDL_STORE_ID") or None
 
 
@@ -93,6 +98,7 @@ def fetch_offers() -> list[dict]:
             })
         return [o for o in out if o["title"]]
     except Exception:
+        logger.exception("fetch_offers failed")
         return []
 
 
@@ -127,15 +133,18 @@ def fetch_coupons() -> list[dict]:
             })
         return [c for c in out if c["title"]]
     except Exception:
+        logger.exception("fetch_coupons failed")
         return []
 
 
 def activate_coupon(coupon_id: str) -> bool:
-    return _client().activate_coupon(coupon_id)
+    """Activate a coupon by ID via the Lidl Plus API."""
+    return bool(_client().activate_coupon(coupon_id))
 
 
 def deactivate_coupon(coupon_id: str) -> bool:
-    return _client().deactivate_coupon(coupon_id)
+    """Deactivate a coupon by ID via the Lidl Plus API."""
+    return bool(_client().deactivate_coupon(coupon_id))
 
 
 # ── receipt parsing ──────────────────────────────────────────────────────────
@@ -155,7 +164,7 @@ class _ReceiptSpanCollector(HTMLParser):
     Class matching checks for word membership so "article css_bold" → "article".
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._by_id: dict[str, dict] = {}
         self._order: list[str] = []
@@ -170,12 +179,12 @@ class _ReceiptSpanCollector(HTMLParser):
                 return w
         return None
 
-    def handle_starttag(self, tag, attrs):
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         if tag != "span":
             self._active_key = None
             return
         a = dict(attrs)
-        cls = self._effective_cls(a.get("class", ""))
+        cls = self._effective_cls(a.get("class") or "")
         if not cls:
             self._active_key = None
             return
@@ -187,11 +196,11 @@ class _ReceiptSpanCollector(HTMLParser):
             self._by_id[key] = {"cls": cls, "attrs": a, "text": ""}
             self._order.append(key)
 
-    def handle_data(self, data):
+    def handle_data(self, data: str) -> None:
         if self._active_key and self._active_key in self._by_id:
             self._by_id[self._active_key]["text"] += data
 
-    def handle_endtag(self, tag):
+    def handle_endtag(self, tag: str) -> None:
         if tag == "span":
             self._active_key = None
 
@@ -245,10 +254,9 @@ def _parse_html_items(html_str: str) -> list[dict]:
                 # extract the leading number from "1.076 kg x …" or "2 x …"
                 m = re.search(r'[\d.,]+', n_text.split("x")[0])
                 if m:
-                    try:
+                    import contextlib
+                    with contextlib.suppress(ValueError):
                         qty = float(m.group().replace(",", "."))
-                    except ValueError:
-                        pass
                 i += 2  # consume both main span and breakdown span
                 items.append({"name": name, "quantity": qty, "price": price, "discount": 0.0, "art_id": art_id})
                 continue
@@ -296,12 +304,12 @@ def parse_receipt(raw: dict) -> tuple[dict, list[dict]]:
         raw_lines = raw.get("itemsLines") or raw.get("lineItems") or raw.get("items") or []
         raw_items = [
             {
-                "name": (l.get("description") or l.get("name") or l.get("title") or "Unknown"),
-                "quantity": float(l.get("quantity") or 1),
-                "price": float(l.get("currentUnitPrice") or l.get("unitPrice") or l.get("price") or 0),
-                "art_id": str(l.get("codeInput") or l.get("articleId") or l.get("id") or ""),
+                "name": (ln.get("description") or ln.get("name") or ln.get("title") or "Unknown"),
+                "quantity": float(ln.get("quantity") or 1),
+                "price": float(ln.get("currentUnitPrice") or ln.get("unitPrice") or ln.get("price") or 0),
+                "art_id": str(ln.get("codeInput") or ln.get("articleId") or ln.get("id") or ""),
             }
-            for l in raw_lines if isinstance(l, dict)
+            for ln in raw_lines if isinstance(ln, dict)
         ]
 
     item_rows = [

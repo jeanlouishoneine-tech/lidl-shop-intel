@@ -12,7 +12,15 @@ dist/
 wheels/
 *.egg-info
 
+# Tool caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
 # Virtual environments
 .venv
 
 .DS_Store
+
+# Claude Code local settings (machine-specific)
+.claude/

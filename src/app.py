@@ -2,19 +2,42 @@
 Lidl Spending Dashboard — entry point.
 Run with: uv run python src/app.py
 """
+import logging
 import os
 from pathlib import Path
+from typing import Any
 
 import dash
-from dash import ALL, Input, Output, State, callback, dcc, html
 import plotly.graph_objects as go
+from dash import ALL, Input, Output, State, callback, dcc, html
 from dotenv import load_dotenv
 
-import db
-import api as lidl_api
-from ai import get_spending_insights
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s  %(name)s  %(levelname)s  %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+import api as lidl_api  # noqa: E402
+import db  # noqa: E402
+from ai import get_spending_insights  # noqa: E402
 
 load_dotenv(Path(__file__).parent.parent / ".env")
+
+_REQUIRED_ENV_VARS = ["LIDL_REFRESH_TOKEN", "LIDL_LANGUAGE", "LIDL_COUNTRY"]
+
+
+def _validate_env() -> None:
+    """Exit early with a helpful message if required env vars are missing."""
+    missing = [k for k in _REQUIRED_ENV_VARS if not os.getenv(k)]
+    if missing:
+        raise SystemExit(
+            f"Missing required environment variables: {', '.join(missing)}\n"
+            "Copy .env.example to .env and fill in the values."
+        )
+
+
+_validate_env()
 
 _COUNTRY_CURRENCY = {
     "DE": "EUR", "AT": "EUR", "FR": "EUR", "ES": "EUR", "IT": "EUR",
@@ -57,6 +80,22 @@ PERIOD_LABEL = {
 def _parse_days(value: str | None) -> int | None:
     n = int(value or "30")
     return None if n == 0 else n
+
+
+def _error_card(exc: Exception) -> html.Div:
+    return html.Div(
+        [
+            html.Strong("Something went wrong"),
+            html.P(
+                str(exc),
+                style={"fontFamily": "monospace", "color": "#e63946", "fontSize": 12, "margin": "4px 0 0"},
+            ),
+        ],
+        style={
+            "background": "#fff3cd", "border": "1px solid #ffc107",
+            "borderRadius": 8, "padding": "16px 20px", "marginTop": 16,
+        },
+    )
 
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -146,9 +185,13 @@ def _sync_data() -> str:
 app = dash.Dash(__name__, title="Lidl Dashboard", suppress_callback_exceptions=True)
 
 app.layout = html.Div(
+    id="app-root",
+    className="theme-light",
     style={"fontFamily": "system-ui, sans-serif", "background": BG, "minHeight": "100vh"},
     children=[
         dcc.Store(id="db-version", data=0),
+        dcc.Store(id="theme", data="light"),
+        dcc.Download(id="download-csv"),
 
         # ── header ────────────────────────────────────────────────────────────
         html.Div(
@@ -161,6 +204,15 @@ app.layout = html.Div(
                 html.H1("Lidl Spending Dashboard",
                         style={"margin": 0, "color": "white", "fontSize": 22}),
                 html.Div(style={"flex": 1}),
+                dcc.Loading(
+                    id="sync-loading",
+                    type="circle",
+                    color=LIDL_YELLOW,
+                    children=html.Span(
+                        id="sync-status",
+                        style={"color": "#cce", "fontSize": 13},
+                    ),
+                ),
                 html.Button(
                     "↻ Sync Data", id="sync-btn", n_clicks=0,
                     style={
@@ -168,8 +220,22 @@ app.layout = html.Div(
                         "padding": "8px 18px", "fontWeight": 600, "cursor": "pointer", "fontSize": 14,
                     },
                 ),
-                html.Span(id="sync-status",
-                          style={"color": "#cce", "fontSize": 13, "marginLeft": 12}),
+                html.Button(
+                    "↓ Export CSV", id="export-btn", n_clicks=0,
+                    style={
+                        "background": "white", "border": "none", "borderRadius": 6,
+                        "padding": "8px 18px", "fontWeight": 600, "cursor": "pointer",
+                        "fontSize": 14, "color": LIDL_BLUE,
+                    },
+                ),
+                html.Button(
+                    "🌙", id="theme-toggle-btn", n_clicks=0,
+                    title="Toggle dark mode",
+                    style={
+                        "background": "transparent", "border": "none", "cursor": "pointer",
+                        "fontSize": 18, "padding": "4px 8px",
+                    },
+                ),
             ],
         ),
 
@@ -226,8 +292,39 @@ app.layout = html.Div(
     State("db-version", "data"),
     prevent_initial_call=True,
 )
-def on_sync(n_clicks, version):
+def on_sync(n_clicks: int, version: int) -> tuple[str, int]:
     return _sync_data(), (version or 0) + 1
+
+
+@callback(
+    Output("download-csv", "data"),
+    Input("export-btn", "n_clicks"),
+    State("time-filter", "value"),
+    prevent_initial_call=True,
+)
+def export_csv(n_clicks: int, time_value: str | None) -> Any:
+    import csv
+    import io
+    days = _parse_days(time_value)
+    rows = db.export_items(days)
+    buf = io.StringIO()
+    if rows:
+        writer = csv.DictWriter(buf, fieldnames=list(rows[0].keys()))
+        writer.writeheader()
+        writer.writerows(rows)
+    return dcc.send_string(buf.getvalue(), filename="lidl_spending.csv")
+
+
+@callback(
+    Output("app-root", "className"),
+    Output("theme", "data"),
+    Input("theme-toggle-btn", "n_clicks"),
+    State("theme", "data"),
+    prevent_initial_call=True,
+)
+def toggle_theme(n_clicks: int, current_theme: str) -> tuple[str, str]:
+    new_theme = "dark" if current_theme == "light" else "light"
+    return f"theme-{new_theme}", new_theme
 
 
 @callback(
@@ -236,22 +333,26 @@ def on_sync(n_clicks, version):
     Input("db-version", "data"),
     Input("time-filter", "value"),
 )
-def render_tab(tab, _version, time_value):
-    days = _parse_days(time_value)
-    if tab == "overview":
-        return _overview_tab(days)
-    if tab == "items":
-        return _items_tab(days)
-    if tab == "offers":
-        return _offers_tab(days)
-    if tab == "ai":
-        return _ai_tab()
-    return html.Div("Unknown tab")
+def render_tab(tab: str, _version: int | None, time_value: str | None) -> Any:
+    try:
+        days = _parse_days(time_value)
+        if tab == "overview":
+            return _overview_tab(days)
+        if tab == "items":
+            return _items_tab(days)
+        if tab == "offers":
+            return _offers_tab(days)
+        if tab == "ai":
+            return _ai_tab()
+        return html.Div("Unknown tab")
+    except Exception as exc:
+        logger.exception("render_tab failed for tab=%s", tab)
+        return _error_card(exc)
 
 
 # ── tab renderers ─────────────────────────────────────────────────────────────
 
-def _overview_tab(days: int | None) -> html.Div:
+def _overview_tab(days: int | None) -> Any:
     currency = CURRENCY
     period   = PERIOD_LABEL.get(days, f"last {days} days")
 
@@ -277,7 +378,7 @@ def _overview_tab(days: int | None) -> html.Div:
             margin=dict(l=0, r=0, t=40, b=0),
             hovermode="x unified",
         )
-        chart = dcc.Graph(
+        chart: Any = dcc.Graph(
             id="trend-chart", figure=fig,
             config={"displayModeBar": False},
             style={"cursor": "pointer"},
@@ -353,7 +454,7 @@ _STOPWORDS = {"de", "des", "du", "le", "la", "les", "a", "au", "aux", "en", "et"
               "d", "l", "bio", "the", "of", "premium", "terra", "natura"}
 
 
-def _parse_size(name: str):
+def _parse_size(name: str) -> tuple[str, float] | None:
     """Return (base_unit_label, base_qty) for a weight/volume token, else None.
     Weight → ('kg', kilograms); volume → ('l', litres)."""
     m = _SIZE_RE.search(name)
@@ -376,7 +477,8 @@ def _parse_size(name: str):
 
 def _family_stem(name: str) -> str:
     """First significant word of a normalized name — a coarse product-family key."""
-    import re, unicodedata
+    import re
+    import unicodedata
     s = unicodedata.normalize("NFKD", name)
     s = "".join(c for c in s if not unicodedata.combining(c)).lower()
     s = _SIZE_RE.sub(" ", s)
@@ -425,7 +527,7 @@ def _build_value_analysis(days: int | None) -> str:
                               f"  (best value: {per_unit[0][0]})")
 
     # Most-bought families first for the swap list.
-    swap_lines = [line for _, line in sorted(swap_lines, key=lambda x: x[0], reverse=True)]
+    swap_lines = [line for _, line in sorted(swap_lines, key=lambda x: x[0], reverse=True)]  # type: ignore[misc]
 
     # 3. Rising prices.
     rising = [t for t in db.price_trends(days, min_dates=3) if t["pct_change"] > 0][:6]
@@ -442,7 +544,7 @@ def _build_value_analysis(days: int | None) -> str:
     ]
 
     out = ["CHEAPER VARIANT CANDIDATES (same first word — ignore if not truly the same product):"]
-    out += swap_lines[:8] or ["  (none)"]
+    out += swap_lines[:8] or ["  (none)"]  # type: ignore[arg-type, list-item]
     out.append("")
     out.append("PACK-SIZE VALUE (price per base unit):")
     out += pack_lines[:8] or ["  (none)"]
@@ -543,7 +645,7 @@ def _deal_cards(deals: list[dict], matched_titles: set[str],
                 price_parts.append(html.Span(f"{currency} {orip:.2f}", style={"textDecoration":"line-through","color":"#aaa","fontSize":12}))
             if op and orip and orip > op:
                 price_parts.append(html.Span(f" save {currency} {orip - op:.2f}", style={"color":"#2a9d2a","fontSize":11,"marginLeft":4}))
-            price_block = html.Div(price_parts, style={"margin":"4px 0"})
+            price_block: Any = html.Div(price_parts, style={"margin":"4px 0"})
             desc = d.get("description","")
             action = None
 
@@ -587,7 +689,7 @@ def _deal_cards(deals: list[dict], matched_titles: set[str],
     return cards
 
 
-def _offers_tab(days: int | None) -> html.Div:
+def _offers_tab(days: int | None) -> Any:
     store_id = os.getenv("LIDL_STORE_ID", "")
     if not store_id:
         return html.Div([
@@ -701,7 +803,7 @@ def _offers_tab(days: int | None) -> html.Div:
     ])
 
 
-def _price_trends_charts(days: int | None) -> html.Div:
+def _price_trends_charts(days: int | None) -> Any:
     trends = db.price_trends(days=days, min_dates=3)
     going_up   = [t for t in trends if t["pct_change"] >  1][:10]
     going_down = [t for t in trends if t["pct_change"] < -1][-10:][::-1]  # most negative first
@@ -772,7 +874,7 @@ def _section(title: str) -> html.Div:
     })
 
 
-def _items_tab(days: int | None) -> html.Div:
+def _items_tab(days: int | None) -> Any:
     period    = PERIOD_LABEL.get(days, f"last {days} days")
     top_freq  = db.top_items_by_frequency(limit=15, days=days)
     top_spend = db.top_items_by_spend(limit=15, days=days)
@@ -872,8 +974,15 @@ def _items_tab(days: int | None) -> html.Div:
     ) if staples else html.P("No staples found for this period.", style={"color": "#888"})
 
     # ── price tracker ─────────────────────────────────────────────────────────
-    item_options = [{"label": r["name"], "value": r["name"]}
-                    for r in db.top_items_by_frequency(limit=50, days=days)]
+    # Use item_price_stats (grouped by art_id) so each dropdown entry maps to
+    # one unique product — avoids merging two products with the same display name.
+    item_options = [
+        {
+            "label": r["name"],
+            "value": r["item_key"],
+        }
+        for r in db.item_price_stats(limit=100, days=days)
+    ]
 
     return html.Div([
         _section("Shopping patterns"),
@@ -922,7 +1031,7 @@ def _items_tab(days: int | None) -> html.Div:
 
 
 
-def _ai_tab() -> html.Div:
+def _ai_tab() -> Any:
     return html.Div([
         html.P(
             "Ask the local AI (llama3.2) to analyse your spending and flag the active & upcoming "
@@ -950,20 +1059,24 @@ def _ai_tab() -> html.Div:
     State("time-filter", "value"),
     prevent_initial_call=True,
 )
-def run_ai(n_clicks, time_value):
-    days    = _parse_days(time_value)
-    summary = db.spending_summary_text(days=days, currency=CURRENCY)
-    value   = _build_value_analysis(days)
-    deals   = _build_deals_summary(days)
-    result  = get_spending_insights(summary, deals, value, currency=CURRENCY)
-    return dcc.Markdown(
-        result,
-        style={
-            "background": CARD_BG, "borderRadius": 8, "padding": "4px 20px",
-            "boxShadow": "0 1px 4px rgba(0,0,0,.08)",
-            "lineHeight": 1.6, "fontSize": 14,
-        },
-    )
+def run_ai(n_clicks: int, time_value: str | None) -> Any:
+    try:
+        days    = _parse_days(time_value)
+        summary = db.spending_summary_text(days=days, currency=CURRENCY)
+        value   = _build_value_analysis(days)
+        deals   = _build_deals_summary(days)
+        result  = get_spending_insights(summary, deals, value, currency=CURRENCY)
+        return dcc.Markdown(
+            result,
+            style={
+                "background": CARD_BG, "borderRadius": 8, "padding": "4px 20px",
+                "boxShadow": "0 1px 4px rgba(0,0,0,.08)",
+                "lineHeight": 1.6, "fontSize": 14,
+            },
+        )
+    except Exception as exc:
+        logger.exception("run_ai failed")
+        return _error_card(exc)
 
 
 # ── price tracker ─────────────────────────────────────────────────────────────
@@ -974,37 +1087,41 @@ def run_ai(n_clicks, time_value):
     State("time-filter", "value"),
     prevent_initial_call=True,
 )
-def update_price_tracker(item_name, time_value):
-    if not item_name:
-        return None
-    days    = _parse_days(time_value)
-    history = db.price_history_for_item(item_name, days)
-    if not history:
-        return html.P("No price history for this item in the selected period.",
-                      style={"color": "#888"})
+def update_price_tracker(item_name: str | None, time_value: str | None) -> Any:
+    try:
+        if not item_name:
+            return None
+        days    = _parse_days(time_value)
+        history = db.price_history_for_item(item_name, days)
+        if not history:
+            return html.P("No price history for this item in the selected period.",
+                          style={"color": "#888"})
 
-    dates  = [r["date"]  for r in history]
-    prices = [r["price"] for r in history]
-    min_p, max_p = min(prices), max(prices)
+        dates  = [r["date"]  for r in history]
+        prices = [r["price"] for r in history]
+        min_p, max_p = min(prices), max(prices)
 
-    fig = go.Figure(go.Scatter(
-        x=dates, y=prices, mode="lines+markers",
-        line=dict(color=LIDL_BLUE, width=2),
-        marker=dict(size=7, color=LIDL_BLUE),
-        hovertemplate=f"%{{x}}: {CURRENCY} %{{y:.2f}}<extra></extra>",
-    ))
-    if min_p != max_p:
-        fig.add_hline(y=min_p, line_dash="dot", line_color="#2a9d2a",
-                      annotation_text=f"Lowest {CURRENCY} {min_p:.2f}", annotation_position="bottom right")
-        fig.add_hline(y=max_p, line_dash="dot", line_color="#e63946",
-                      annotation_text=f"Highest {CURRENCY} {max_p:.2f}", annotation_position="top right")
-    fig.update_layout(
-        title=f"Unit price history — {item_name}",
-        xaxis_title="Date", yaxis_title=CURRENCY,
-        plot_bgcolor=CARD_BG, paper_bgcolor=CARD_BG,
-        margin=dict(l=0, r=0, t=40, b=0), height=300,
-    )
-    return _chart_card(dcc.Graph(figure=fig, config={"displayModeBar": False}))
+        fig = go.Figure(go.Scatter(
+            x=dates, y=prices, mode="lines+markers",
+            line=dict(color=LIDL_BLUE, width=2),
+            marker=dict(size=7, color=LIDL_BLUE),
+            hovertemplate=f"%{{x}}: {CURRENCY} %{{y:.2f}}<extra></extra>",
+        ))
+        if min_p != max_p:
+            fig.add_hline(y=min_p, line_dash="dot", line_color="#2a9d2a",
+                          annotation_text=f"Lowest {CURRENCY} {min_p:.2f}", annotation_position="bottom right")
+            fig.add_hline(y=max_p, line_dash="dot", line_color="#e63946",
+                          annotation_text=f"Highest {CURRENCY} {max_p:.2f}", annotation_position="top right")
+        fig.update_layout(
+            title=f"Unit price history — {item_name}",
+            xaxis_title="Date", yaxis_title=CURRENCY,
+            plot_bgcolor=CARD_BG, paper_bgcolor=CARD_BG,
+            margin=dict(l=0, r=0, t=40, b=0), height=300,
+        )
+        return _chart_card(dcc.Graph(figure=fig, config={"displayModeBar": False}))
+    except Exception as exc:
+        logger.exception("update_price_tracker failed")
+        return _error_card(exc)
 
 
 # ── coupon activate / deactivate ──────────────────────────────────────────────
@@ -1016,28 +1133,32 @@ def update_price_tracker(item_name, time_value):
     State("db-version", "data"),
     prevent_initial_call=True,
 )
-def toggle_coupon(n_clicks_list, version):
-    import dash
-    ctx = dash.callback_context
-    if not ctx.triggered_id or not isinstance(ctx.triggered_id, dict):
-        return dash.no_update, dash.no_update
+def toggle_coupon(n_clicks_list: list[int | None], version: int) -> tuple[Any, Any]:
+    try:
+        import dash
+        ctx = dash.callback_context
+        if not ctx.triggered_id or not isinstance(ctx.triggered_id, dict):
+            return dash.no_update, dash.no_update
 
-    index = ctx.triggered_id["index"]
-    promotion_id, action = index.split("|", 1)
+        index = ctx.triggered_id["index"]
+        promotion_id, action = index.split("|", 1)
 
-    if action == "activate":
-        success = lidl_api.activate_coupon(promotion_id)
-        msg     = "✓ Coupon activated" if success else "✗ Activation failed"
-    else:
-        success = lidl_api.deactivate_coupon(promotion_id)
-        msg     = "✓ Coupon deactivated" if success else "✗ Deactivation failed"
+        if action == "activate":
+            success = lidl_api.activate_coupon(promotion_id)
+            msg     = "✓ Coupon activated" if success else "✗ Activation failed"
+        else:
+            success = lidl_api.deactivate_coupon(promotion_id)
+            msg     = "✓ Coupon deactivated" if success else "✗ Deactivation failed"
 
-    if success:
-        db.set_coupon_activated(promotion_id, action == "activate")
+        if success:
+            db.set_coupon_activated(promotion_id, action == "activate")
 
-    color = "#2a9d2a" if success else "#e63946"
-    feedback = html.Span(msg, style={"color": color, "fontWeight": 600, "fontSize": 14})
-    return feedback, (version or 0) + 1
+        color = "#2a9d2a" if success else "#e63946"
+        feedback = html.Span(msg, style={"color": color, "fontWeight": 600, "fontSize": 14})
+        return feedback, (version or 0) + 1
+    except Exception as exc:
+        logger.exception("toggle_coupon failed")
+        return _error_card(exc), version
 
 
 # ── receipt drill-down ────────────────────────────────────────────────────────
@@ -1047,79 +1168,83 @@ def toggle_coupon(n_clicks_list, version):
     Input("trend-chart", "clickData"),
     prevent_initial_call=True,
 )
-def show_day_detail(click_data):
-    if not click_data:
-        return None
+def show_day_detail(click_data: dict[str, Any] | None) -> Any:
+    try:
+        if not click_data:
+            return None
 
-    date = click_data["points"][0]["x"]
-    receipts = db.receipts_for_date(date)
-    if not receipts:
-        return html.P(f"No receipts found for {date}.", style={"color": "#888"})
+        date = click_data["points"][0]["x"]
+        receipts = db.receipts_for_date(date)
+        if not receipts:
+            return html.P(f"No receipts found for {date}.", style={"color": "#888"})
 
-    sections = []
-    for receipt in receipts:
-        items = db.items_for_receipt(receipt["id"])
-        currency = receipt.get("currency", CURRENCY)
+        sections = []
+        for receipt in receipts:
+            items = db.items_for_receipt(receipt["id"])
+            currency = receipt.get("currency", CURRENCY)
 
-        th_style = {
-            "padding": "8px 12px", "textAlign": "left",
-            "background": LIDL_BLUE, "color": "white", "fontSize": 13,
-        }
-        td_style = {"padding": "6px 12px", "fontSize": 13, "borderBottom": "1px solid #f0f0f0"}
-        td_num   = {**td_style, "textAlign": "right"}
+            th_style = {
+                "padding": "8px 12px", "textAlign": "left",
+                "background": LIDL_BLUE, "color": "white", "fontSize": 13,
+            }
+            td_style = {"padding": "6px 12px", "fontSize": 13, "borderBottom": "1px solid #f0f0f0"}
+            td_num   = {**td_style, "textAlign": "right"}
 
-        rows = [
-            html.Tr([
-                html.Th("Item",       style=th_style),
-                html.Th("Qty",        style={**th_style, "textAlign": "right"}),
-                html.Th("Unit price", style={**th_style, "textAlign": "right"}),
-                html.Th("Total",      style={**th_style, "textAlign": "right"}),
-            ])
-        ]
-        for item in items:
-            gross    = item["quantity"] * item["price"]
-            discount = item.get("discount", 0.0)
-            net      = gross - discount
-            qty_str  = f"×{item['quantity']:.0f}" if item["quantity"] == int(item["quantity"]) else f"×{item['quantity']:.3f}"
+            rows = [
+                html.Tr([
+                    html.Th("Item",       style=th_style),
+                    html.Th("Qty",        style={**th_style, "textAlign": "right"}),
+                    html.Th("Unit price", style={**th_style, "textAlign": "right"}),
+                    html.Th("Total",      style={**th_style, "textAlign": "right"}),
+                ])
+            ]
+            for item in items:
+                gross    = item["quantity"] * item["price"]
+                discount = item.get("discount", 0.0)
+                net      = gross - discount
+                qty_str  = f"×{item['quantity']:.0f}" if item["quantity"] == int(item["quantity"]) else f"×{item['quantity']:.3f}"
+                rows.append(html.Tr([
+                    html.Td(item["name"],                      style=td_style),
+                    html.Td(qty_str,                           style=td_num),
+                    html.Td(f"{currency} {item['price']:.2f}", style=td_num),
+                    html.Td(
+                        html.Span([
+                            f"{currency} {net:.2f}",
+                            html.Span(
+                                f" (−{currency} {discount:.2f})",
+                                style={"color": "#2a9d2a", "fontSize": 11, "marginLeft": 4},
+                            ) if discount > 0 else "",
+                        ]),
+                        style=td_num,
+                    ),
+                ]))
+
+            # totals footer
             rows.append(html.Tr([
-                html.Td(item["name"],                      style=td_style),
-                html.Td(qty_str,                           style=td_num),
-                html.Td(f"{currency} {item['price']:.2f}", style=td_num),
-                html.Td(
-                    html.Span([
-                        f"{currency} {net:.2f}",
-                        html.Span(
-                            f" (−{currency} {discount:.2f})",
-                            style={"color": "#2a9d2a", "fontSize": 11, "marginLeft": 4},
-                        ) if discount > 0 else "",
-                    ]),
-                    style=td_num,
-                ),
+                html.Td(f"{len(items)} items", style={**td_style, "fontWeight": 600, "color": "#666"}),
+                html.Td("", style=td_num),
+                html.Td("Total", style={**td_num, "fontWeight": 600}),
+                html.Td(f"{currency} {receipt['total']:.2f}",
+                        style={**td_num, "fontWeight": 700, "color": LIDL_BLUE}),
             ]))
 
-        # totals footer
-        rows.append(html.Tr([
-            html.Td(f"{len(items)} items", style={**td_style, "fontWeight": 600, "color": "#666"}),
-            html.Td("", style=td_num),
-            html.Td("Total", style={**td_num, "fontWeight": 600}),
-            html.Td(f"{currency} {receipt['total']:.2f}",
-                    style={**td_num, "fontWeight": 700, "color": LIDL_BLUE}),
-        ]))
+            store = receipt.get("store_name") or receipt.get("store_id") or "Lidl"
+            sections.append(html.Div([
+                html.H4(f"{store} — {date}",
+                        style={"margin": "0 0 12px", "color": LIDL_BLUE, "fontSize": 15}),
+                html.Table(rows, style={"width": "100%", "borderCollapse": "collapse"}),
+            ]))
 
-        store = receipt.get("store_name") or receipt.get("store_id") or "Lidl"
-        sections.append(html.Div([
-            html.H4(f"{store} — {date}",
-                    style={"margin": "0 0 12px", "color": LIDL_BLUE, "fontSize": 15}),
-            html.Table(rows, style={"width": "100%", "borderCollapse": "collapse"}),
-        ]))
-
-    return html.Div(
-        sections,
-        style={
-            "background": CARD_BG, "borderRadius": 8, "padding": 20,
-            "boxShadow": "0 1px 4px rgba(0,0,0,.08)",
-        },
-    )
+        return html.Div(
+            sections,
+            style={
+                "background": CARD_BG, "borderRadius": 8, "padding": 20,
+                "boxShadow": "0 1px 4px rgba(0,0,0,.08)",
+            },
+        )
+    except Exception as exc:
+        logger.exception("show_day_detail failed")
+        return _error_card(exc)
 
 
 # ── entry point ───────────────────────────────────────────────────────────────

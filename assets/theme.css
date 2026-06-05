@@ -1,0 +1,26 @@
+/* Light mode (default) */
+.theme-light {
+  --bg: #F8F9FA;
+  --card-bg: #FFFFFF;
+  --text: #212529;
+  --text-muted: #6c757d;
+  --border: #dee2e6;
+}
+
+/* Dark mode */
+.theme-dark {
+  --bg: #1a1a2e;
+  --card-bg: #16213e;
+  --text: #e0e0e0;
+  --text-muted: #a0a0b0;
+  --border: #2a2a4a;
+}
+
+.theme-dark {
+  background-color: var(--bg);
+  color: var(--text);
+}
+
+/* Note: chart colors and inline-styled components are controlled by Plotly/Dash
+   inline styles and do not respond to CSS classes without a full refactor.
+   This CSS controls page-level theming for elements without inline styles. */

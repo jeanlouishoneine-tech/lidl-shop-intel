@@ -3,21 +3,31 @@ SQLite data layer. All persistent state lives in data/lidl.db.
 
 Call init_db() once at startup (idempotent).
 """
+import logging
 import sqlite3
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
+
+logger = logging.getLogger(__name__)
 
 DB_PATH = Path(__file__).parent.parent / "data" / "lidl.db"
 
 
 def _conn() -> sqlite3.Connection:
-    DB_PATH.parent.mkdir(exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    """Open and return a sqlite3 connection with row_factory set. Caller uses it as a context manager."""
+    try:
+        DB_PATH.parent.mkdir(exist_ok=True)
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        return conn
+    except Exception:
+        logger.exception("Failed to open database at %s", DB_PATH)
+        raise
 
 
 def init_db() -> None:
+    """Create all tables and indexes (idempotent). Call once at startup."""
     with _conn() as conn:
         conn.executescript("""
             CREATE TABLE IF NOT EXISTS receipts (
@@ -77,13 +87,22 @@ def init_db() -> None:
             try:
                 conn.execute(f"ALTER TABLE {table} ADD COLUMN {col}")
             except Exception:
-                pass
+                logger.debug("Column already exists in %s: %s", table, col)
+
+        conn.executescript("""
+            CREATE INDEX IF NOT EXISTS idx_items_name        ON items (name);
+            CREATE INDEX IF NOT EXISTS idx_items_receipt_id  ON items (receipt_id);
+            CREATE INDEX IF NOT EXISTS idx_receipts_date     ON receipts (date);
+            CREATE INDEX IF NOT EXISTS idx_offers_valid_until  ON offers (valid_until);
+            CREATE INDEX IF NOT EXISTS idx_coupons_valid_until ON coupons (valid_until);
+        """)
 
 
 # ── write ────────────────────────────────────────────────────────────────────
 
 def upsert_receipt(receipt: dict) -> None:
-    now = datetime.now(timezone.utc).isoformat()
+    """Insert or update a receipt header row."""
+    now = datetime.now(UTC).isoformat()
     with _conn() as conn:
         conn.execute(
             """
@@ -99,6 +118,7 @@ def upsert_receipt(receipt: dict) -> None:
 
 
 def upsert_items(items: list[dict]) -> None:
+    """Insert item rows for a receipt; skips rows that already exist (ON CONFLICT DO NOTHING)."""
     if not items:
         return
     with _conn() as conn:
@@ -113,9 +133,10 @@ def upsert_items(items: list[dict]) -> None:
 
 
 def upsert_offers(offers: list[dict]) -> None:
+    """Replace all offer rows with the latest sync results (DELETE then INSERT)."""
     if not offers:
         return
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     with _conn() as conn:
         conn.execute("DELETE FROM offers")
         conn.executemany(
@@ -130,9 +151,10 @@ def upsert_offers(offers: list[dict]) -> None:
 
 
 def upsert_coupons(coupons: list[dict]) -> None:
+    """Replace all coupon rows with the latest sync results (DELETE then INSERT)."""
     if not coupons:
         return
-    now = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(UTC).isoformat()
     with _conn() as conn:
         conn.execute("DELETE FROM coupons")
         conn.executemany(
@@ -147,6 +169,7 @@ def upsert_coupons(coupons: list[dict]) -> None:
 
 
 def set_coupon_activated(promotion_id: str, activated: bool) -> None:
+    """Update the is_activated flag for all coupons with the given promotion_id."""
     with _conn() as conn:
         conn.execute(
             "UPDATE coupons SET is_activated = ? WHERE promotion_id = ?",
@@ -155,12 +178,14 @@ def set_coupon_activated(promotion_id: str, activated: bool) -> None:
 
 
 def receipt_ids() -> set[str]:
+    """Return the set of all stored receipt IDs."""
     with _conn() as conn:
         rows = conn.execute("SELECT id FROM receipts").fetchall()
     return {row["id"] for row in rows}
 
 
 def receipt_ids_with_items() -> set[str]:
+    """Return the set of receipt IDs that have at least one item row."""
     with _conn() as conn:
         rows = conn.execute("SELECT DISTINCT receipt_id FROM items").fetchall()
     return {row["receipt_id"] for row in rows}
@@ -168,14 +193,14 @@ def receipt_ids_with_items() -> set[str]:
 
 # ── read (used by dashboard) ─────────────────────────────────────────────────
 
-def _where(days: int | None) -> tuple[str, list]:
+def _where(days: int | None) -> tuple[str, list[Any]]:
     """Return (WHERE clause, params list) for receipt-level queries filtered by days."""
     if days is None:
         return "", []
     return "WHERE date >= date('now', ?)", [f"-{days} days"]
 
 
-def _join_where(days: int | None) -> tuple[str, list]:
+def _join_where(days: int | None) -> tuple[str, list[Any]]:
     """Same but using table alias r (for item JOIN queries)."""
     if days is None:
         return "", []
@@ -183,6 +208,7 @@ def _join_where(days: int | None) -> tuple[str, list]:
 
 
 def spending_by_day(days: int | None = None) -> list[dict]:
+    """Return daily spend totals as [{date, total}] ordered by date."""
     where, params = _where(days)
     with _conn() as conn:
         rows = conn.execute(
@@ -193,39 +219,44 @@ def spending_by_day(days: int | None = None) -> list[dict]:
 
 
 def receipt_count(days: int | None = None) -> int:
+    """Return the total number of receipts in the given period."""
     where, params = _where(days)
     with _conn() as conn:
-        return conn.execute(f"SELECT COUNT(*) FROM receipts {where}", params).fetchone()[0]
+        return int(conn.execute(f"SELECT COUNT(*) FROM receipts {where}", params).fetchone()[0])
 
 
 def total_spent(days: int | None = None) -> float:
+    """Return sum of all receipt totals in the given period (0.0 if no data)."""
     where, params = _where(days)
     with _conn() as conn:
         row = conn.execute(
             f"SELECT COALESCE(SUM(total),0) FROM receipts {where}", params
         ).fetchone()
-    return row[0]
+    return float(row[0])
 
 
 def avg_per_visit(days: int | None = None) -> float:
+    """Return average receipt total across all visits in the given period."""
     where, params = _where(days)
     with _conn() as conn:
         row = conn.execute(
             f"SELECT COALESCE(AVG(total),0) FROM receipts {where}", params
         ).fetchone()
-    return row[0]
+    return float(row[0])
 
 
 def biggest_purchase(days: int | None = None) -> float:
+    """Return the highest single receipt total in the given period."""
     where, params = _where(days)
     with _conn() as conn:
         row = conn.execute(
             f"SELECT COALESCE(MAX(total),0) FROM receipts {where}", params
         ).fetchone()
-    return row[0]
+    return float(row[0])
 
 
 def total_discounts(days: int | None = None) -> float:
+    """Return sum of all item discounts in the given period."""
     where, params = _join_where(days)
     with _conn() as conn:
         row = conn.execute(
@@ -237,10 +268,10 @@ def total_discounts(days: int | None = None) -> float:
             """,
             params,
         ).fetchone()
-    return row[0]
+    return float(row[0])
 
 
-def purchased_article_ids(days: int | None = None) -> dict[str, dict]:
+def purchased_article_ids(days: int | None = None) -> dict[str, dict[str, Any]]:
     """
     Map each purchased article ID → {name, frequency} for matching against
     offer product_ids / coupon article_ids. Picks the most-common name per ID.
@@ -257,7 +288,7 @@ def purchased_article_ids(days: int | None = None) -> dict[str, dict]:
             """,
             params,
         ).fetchall()
-    result: dict[str, dict] = {}
+    result: dict[str, dict[str, Any]] = {}
     for row in rows:
         aid = row["art_id"]
         entry = result.setdefault(aid, {"name": row["name"], "frequency": 0})
@@ -272,6 +303,7 @@ def purchased_article_ids(days: int | None = None) -> dict[str, dict]:
 
 
 def top_items_by_frequency(limit: int = 15, days: int | None = None) -> list[dict]:
+    """Return items sorted by purchase count: [{name, frequency, total_spent}]."""
     where, params = _join_where(days)
     with _conn() as conn:
         rows = conn.execute(
@@ -291,6 +323,7 @@ def top_items_by_frequency(limit: int = 15, days: int | None = None) -> list[dic
 
 
 def top_items_by_spend(limit: int = 15, days: int | None = None) -> list[dict]:
+    """Return items sorted by total spend: [{name, total_spent, frequency}]."""
     where, params = _join_where(days)
     with _conn() as conn:
         rows = conn.execute(
@@ -330,12 +363,14 @@ def item_price_stats(days: int | None = None, limit: int = 50) -> list[dict]:
     """
     Per-item price stats for the most-bought items: frequency, average, lowest,
     highest, and the price paid on the most recent purchase date.
+    Groups by art_id when available so different products with the same name are not merged.
     """
     where, params = _join_where(days)
     with _conn() as conn:
         rows = conn.execute(
             f"""
-            SELECT i.name, i.art_id,
+            SELECT COALESCE(NULLIF(i.art_id,''), i.name) AS item_key,
+                   MIN(i.name) AS name, i.art_id,
                    COUNT(*)        AS frequency,
                    ROUND(AVG(i.price), 2) AS avg_price,
                    ROUND(MIN(i.price), 2) AS min_price,
@@ -343,13 +378,14 @@ def item_price_stats(days: int | None = None, limit: int = 50) -> list[dict]:
                    ROUND((
                        SELECT i2.price FROM items i2
                        JOIN receipts r2 ON r2.id = i2.receipt_id
-                       WHERE i2.name = i.name
+                       WHERE COALESCE(NULLIF(i2.art_id,''), i2.name) =
+                             COALESCE(NULLIF(i.art_id,''), i.name)
                        ORDER BY r2.date DESC, i2.id DESC LIMIT 1
                    ), 2) AS last_price
             FROM items i
             JOIN receipts r ON r.id = i.receipt_id
             {where}
-            GROUP BY i.name
+            GROUP BY item_key
             ORDER BY frequency DESC
             LIMIT ?
             """,
@@ -359,6 +395,7 @@ def item_price_stats(days: int | None = None, limit: int = 50) -> list[dict]:
 
 
 def monthly_spend(days: int | None = None) -> list[dict]:
+    """Return monthly totals and visit counts: [{month, total, visits}]."""
     where, params = _where(days)
     with _conn() as conn:
         rows = conn.execute(
@@ -374,6 +411,7 @@ def monthly_spend(days: int | None = None) -> list[dict]:
 
 
 def visits_by_weekday(days: int | None = None) -> list[dict]:
+    """Return visit count by day-of-week: [{day, visits}] for Mon–Sun, with zeros filled in."""
     where, params = _where(days)
     labels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
     with _conn() as conn:
@@ -394,25 +432,30 @@ def price_trends(days: int | None = None, min_dates: int = 3) -> list[dict]:
     """
     For each item bought on at least min_dates distinct dates, return the
     % price change between first and last purchase. Sorted DESC (biggest rise first).
+
+    Groups by (name, art_id) so that two products with the same display name but
+    different article IDs (e.g. different pack sizes) are not merged together.
+    Rows with an empty art_id fall back to name-only grouping.
     """
     where, params = _join_where(days)
     with _conn() as conn:
         rows = conn.execute(
             f"""
             WITH dated AS (
-                SELECT i.name, r.date, AVG(i.price) AS price
+                SELECT i.name, COALESCE(NULLIF(i.art_id,''), i.name) AS item_key,
+                       r.date, AVG(i.price) AS price
                 FROM items i
                 JOIN receipts r ON r.id = i.receipt_id
                 {where}
-                GROUP BY i.name, r.date
+                GROUP BY item_key, r.date
             ),
             bounds AS (
-                SELECT name,
+                SELECT item_key, MIN(name) AS name,
                        MIN(date) AS first_date,
                        MAX(date) AS last_date,
                        COUNT(*)  AS num_dates
                 FROM dated
-                GROUP BY name
+                GROUP BY item_key
                 HAVING num_dates >= ?
             )
             SELECT b.name, b.num_dates,
@@ -420,8 +463,8 @@ def price_trends(days: int | None = None, min_dates: int = 3) -> list[dict]:
                    ROUND(d2.price, 2) AS last_price,
                    ROUND((d2.price - d1.price) / d1.price * 100, 1) AS pct_change
             FROM bounds b
-            JOIN dated d1 ON d1.name = b.name AND d1.date = b.first_date
-            JOIN dated d2 ON d2.name = b.name AND d2.date = b.last_date
+            JOIN dated d1 ON d1.item_key = b.item_key AND d1.date = b.first_date
+            JOIN dated d2 ON d2.item_key = b.item_key AND d2.date = b.last_date
             WHERE d1.price > 0 AND pct_change != 0
             ORDER BY pct_change DESC
             """,
@@ -430,23 +473,31 @@ def price_trends(days: int | None = None, min_dates: int = 3) -> list[dict]:
     return [dict(r) for r in rows]
 
 
-def price_history_for_item(name: str, days: int | None = None) -> list[dict]:
+def price_history_for_item(item_key: str, days: int | None = None) -> list[dict]:
+    """
+    Return average unit price per purchase date for a specific item: [{date, price}].
+    item_key should be the art_id when non-empty, otherwise the item name.
+    """
     where, params = _join_where(days)
+    and_clause = "AND" if where else ""
+    join_where_stripped = where.replace("WHERE ", "") if where else ""
     with _conn() as conn:
         rows = conn.execute(
             f"""
             SELECT r.date, AVG(i.price) AS price
             FROM items i
             JOIN receipts r ON r.id = i.receipt_id
-            WHERE i.name = ? {"AND" if where else ""} {where.replace("WHERE ", "") if where else ""}
+            WHERE COALESCE(NULLIF(i.art_id,''), i.name) = ?
+            {and_clause} {join_where_stripped}
             GROUP BY r.date ORDER BY r.date
             """,
-            (name, *params),
+            (item_key, *params),
         ).fetchall()
     return [dict(r) for r in rows]
 
 
 def staple_items(days: int | None = None, min_pct: float = 20.0) -> list[dict]:
+    """Return items that appear in at least min_pct% of trips: [{name, visits, pct, total_spent}]."""
     where, params = _join_where(days)
     total = receipt_count(days)
     if not total:
@@ -473,6 +524,7 @@ def staple_items(days: int | None = None, min_pct: float = 20.0) -> list[dict]:
 
 
 def receipts_for_date(date: str) -> list[dict]:
+    """Return all receipts for a specific ISO date string (YYYY-MM-DD)."""
     with _conn() as conn:
         rows = conn.execute(
             "SELECT * FROM receipts WHERE date = ? ORDER BY store_name", (date,)
@@ -481,6 +533,7 @@ def receipts_for_date(date: str) -> list[dict]:
 
 
 def items_for_receipt(receipt_id: str) -> list[dict]:
+    """Return all items for a receipt ordered by name."""
     with _conn() as conn:
         rows = conn.execute(
             "SELECT name, quantity, price, discount FROM items WHERE receipt_id = ? ORDER BY name",
@@ -490,13 +543,15 @@ def items_for_receipt(receipt_id: str) -> list[dict]:
 
 
 def all_offers() -> list[dict]:
+    """Return all stored offers ordered by title."""
     with _conn() as conn:
         rows = conn.execute("SELECT * FROM offers ORDER BY title").fetchall()
     return [dict(r) for r in rows]
 
 
 def current_offers() -> list[dict]:
-    today = datetime.now(timezone.utc).date().isoformat()
+    """Return offers that are currently valid (valid_from ≤ today ≤ valid_until)."""
+    today = datetime.now(UTC).date().isoformat()
     with _conn() as conn:
         rows = conn.execute(
             "SELECT * FROM offers WHERE (valid_from IS NULL OR valid_from <= ?) "
@@ -507,7 +562,8 @@ def current_offers() -> list[dict]:
 
 
 def upcoming_offers() -> list[dict]:
-    today = datetime.now(timezone.utc).date().isoformat()
+    """Return offers that start after today, ordered by start date."""
+    today = datetime.now(UTC).date().isoformat()
     with _conn() as conn:
         rows = conn.execute(
             "SELECT * FROM offers WHERE valid_from > ? ORDER BY valid_from, title",
@@ -517,13 +573,15 @@ def upcoming_offers() -> list[dict]:
 
 
 def all_coupons() -> list[dict]:
+    """Return all stored coupons ordered by title."""
     with _conn() as conn:
         rows = conn.execute("SELECT * FROM coupons ORDER BY title").fetchall()
     return [dict(r) for r in rows]
 
 
 def current_coupons() -> list[dict]:
-    today = datetime.now(timezone.utc).date().isoformat()
+    """Return coupons that are currently valid."""
+    today = datetime.now(UTC).date().isoformat()
     with _conn() as conn:
         rows = conn.execute(
             "SELECT * FROM coupons WHERE (valid_from IS NULL OR valid_from <= ?) "
@@ -534,7 +592,8 @@ def current_coupons() -> list[dict]:
 
 
 def upcoming_coupons() -> list[dict]:
-    today = datetime.now(timezone.utc).date().isoformat()
+    """Return coupons that start after today, ordered by start date."""
+    today = datetime.now(UTC).date().isoformat()
     with _conn() as conn:
         rows = conn.execute(
             "SELECT * FROM coupons WHERE valid_from > ? ORDER BY valid_from, title",
@@ -566,6 +625,25 @@ def matched_offers(top_n: int = 50) -> list[dict]:
         if item_words & title_words:
             matches.append(offer)
     return matches
+
+
+def export_items(days: int | None = None) -> list[dict]:
+    """Return all receipt items joined with date and store for CSV export."""
+    where, params = _join_where(days)
+    with _conn() as conn:
+        rows = conn.execute(
+            f"""
+            SELECT r.date, r.store_name, r.currency,
+                   i.name, i.quantity, i.price, i.discount,
+                   ROUND(i.quantity * i.price - i.discount, 2) AS net_total
+            FROM items i
+            JOIN receipts r ON r.id = i.receipt_id
+            {where}
+            ORDER BY r.date, r.store_name, i.name
+            """,
+            params,
+        ).fetchall()
+    return [dict(r) for r in rows]
 
 
 def spending_summary_text(days: int | None = None, currency: str = "EUR") -> str:
