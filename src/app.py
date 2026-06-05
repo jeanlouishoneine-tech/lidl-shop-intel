@@ -187,7 +187,7 @@ app = dash.Dash(__name__, title="Lidl Dashboard", suppress_callback_exceptions=T
 app.layout = html.Div(
     id="app-root",
     className="theme-light",
-    style={"fontFamily": "system-ui, sans-serif", "background": BG, "minHeight": "100vh"},
+    style={"fontFamily": "system-ui, sans-serif", "minHeight": "100vh"},
     children=[
         dcc.Store(id="db-version", data=0),
         dcc.Store(id="theme", data="light"),

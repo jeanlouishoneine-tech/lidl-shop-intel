@@ -1,26 +1,74 @@
-/* Light mode (default) */
+/* ── Light mode (default) ─────────────────────────────────────────────────── */
 .theme-light {
-  --bg: #F8F9FA;
-  --card-bg: #FFFFFF;
-  --text: #212529;
-  --text-muted: #6c757d;
-  --border: #dee2e6;
+  background-color: #F8F9FA;
+  color: #212529;
 }
 
-/* Dark mode */
+.theme-light .tab-bar,
+.theme-light .content-area {
+  background-color: #F8F9FA;
+}
+
+/* ── Dark mode ────────────────────────────────────────────────────────────── */
 .theme-dark {
-  --bg: #1a1a2e;
-  --card-bg: #16213e;
-  --text: #e0e0e0;
-  --text-muted: #a0a0b0;
-  --border: #2a2a4a;
+  background-color: #1a1a2e;
+  color: #e0e0e0;
 }
 
-.theme-dark {
-  background-color: var(--bg);
-  color: var(--text);
+/* Main content padding area */
+.theme-dark > div:last-child {
+  background-color: #1a1a2e !important;
 }
 
-/* Note: chart colors and inline-styled components are controlled by Plotly/Dash
-   inline styles and do not respond to CSS classes without a full refactor.
-   This CSS controls page-level theming for elements without inline styles. */
+/* Time-filter bar and coupon feedback bar */
+.theme-dark > div:nth-child(5),
+.theme-dark > div:nth-child(6) {
+  background-color: #16213e !important;
+  border-color: #2a2a4a !important;
+  color: #e0e0e0 !important;
+}
+
+/* Tab strip */
+.theme-dark .tab-strip--top {
+  background-color: #16213e !important;
+  border-color: #2a2a4a !important;
+}
+
+.theme-dark .tab--selected {
+  background-color: #1a1a2e !important;
+  color: #e0e0e0 !important;
+}
+
+.theme-dark .tab {
+  color: #a0a0b0 !important;
+  background-color: #16213e !important;
+  border-color: #2a2a4a !important;
+}
+
+/* Tab content + all card divs within */
+.theme-dark #tab-content,
+.theme-dark #tab-content > div {
+  background-color: #1a1a2e !important;
+}
+
+/* Dropdowns */
+.theme-dark .Select-control,
+.theme-dark .Select-menu-outer {
+  background-color: #16213e !important;
+  border-color: #2a2a4a !important;
+  color: #e0e0e0 !important;
+}
+
+.theme-dark .Select-value-label,
+.theme-dark .Select-placeholder,
+.theme-dark .Select-option {
+  color: #e0e0e0 !important;
+}
+
+.theme-dark .Select-option:hover {
+  background-color: #2a2a4a !important;
+}
+
+/* Note: KPI cards, chart backgrounds, and components with explicit inline styles
+   (background: #FFFFFF, background: CARD_BG) require a full inline-style refactor
+   to fully respond to the theme. The above covers the page shell and navigation. */
