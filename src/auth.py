@@ -12,7 +12,6 @@ from pathlib import Path
 from dotenv import load_dotenv, set_key
 from lidlplus_api import LidlPlusApi
 
-
 ENV_PATH = Path(__file__).parent.parent / ".env"
 
 

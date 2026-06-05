@@ -1,0 +1,71 @@
+/* ── Dark mode — all selectors use !important to beat Dash inline styles ──── */
+
+/* Time-filter bar (second child of app-root, has explicit white inline bg) */
+#app-root.theme-dark > div:nth-child(5) {
+  background-color: #16213e !important;
+  border-bottom-color: #2a2a4a !important;
+  color: #e0e0e0 !important;
+}
+
+/* Coupon feedback bar */
+#app-root.theme-dark > div:nth-child(6) {
+  background-color: #1a1a2e !important;
+}
+
+/* Tab container + tab content wrapper */
+#app-root.theme-dark > div:nth-child(7),
+#app-root.theme-dark #tab-content {
+  background-color: #1a1a2e !important;
+  color: #e0e0e0 !important;
+}
+
+/* Dash tab strip */
+#app-root.theme-dark .tab-strip--top {
+  background-color: #16213e !important;
+  border-bottom-color: #2a2a4a !important;
+}
+
+#app-root.theme-dark .tab {
+  background-color: #16213e !important;
+  color: #a0a0b0 !important;
+  border-color: #2a2a4a !important;
+}
+
+#app-root.theme-dark .tab--selected {
+  background-color: #1a1a2e !important;
+  color: #e0e0e0 !important;
+  border-top-color: #0050AA !important;
+}
+
+/* Dropdowns */
+#app-root.theme-dark .Select-control {
+  background-color: #16213e !important;
+  border-color: #2a2a4a !important;
+}
+
+#app-root.theme-dark .Select-value-label,
+#app-root.theme-dark .Select-placeholder {
+  color: #e0e0e0 !important;
+}
+
+#app-root.theme-dark .Select-menu-outer {
+  background-color: #16213e !important;
+  border-color: #2a2a4a !important;
+}
+
+#app-root.theme-dark .Select-option {
+  background-color: #16213e !important;
+  color: #e0e0e0 !important;
+}
+
+#app-root.theme-dark .Select-option:hover,
+#app-root.theme-dark .Select-option.is-focused {
+  background-color: #2a2a4a !important;
+}
+
+#app-root.theme-dark .Select-arrow {
+  border-top-color: #e0e0e0 !important;
+}
+
+/* Note: KPI cards, chart backgrounds, and buttons with explicit white inline
+   styles require a full inline-style refactor to fully respond to the theme. */

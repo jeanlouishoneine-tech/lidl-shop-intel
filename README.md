@@ -46,6 +46,10 @@ OLLAMA_MODEL=llama3.2
 # LIDL_CURRENCY=EUR   # optional — derived automatically from LIDL_COUNTRY
 ```
 
+> **Security note:** `.env` contains your Lidl refresh token and is git-ignored by default.
+> Never commit it, share it, or store it in a public location.
+> Anyone with this token can access your Lidl Plus account.
+
 ---
 
 ## Authentication
@@ -125,9 +129,65 @@ src/
   auth.py   # One-time authentication script
   db.py     # SQLite persistence and queries
   ai.py     # Ollama integration
+assets/
+  theme.css # Dark mode CSS
 data/
   lidl.db   # Local SQLite database (git-ignored)
+tests/
+  test_db.py           # DB query tests
+  test_api_parsing.py  # Receipt parsing tests
+  test_api_errors.py   # API error handling tests
 ```
+
+## Architecture
+
+```
+┌─────────────┐    HTTPS     ┌─────────────────────┐
+│  Lidl Plus  │◄────────────►│  api.py              │
+│  API        │              │  (receipts, offers,  │
+└─────────────┘              │   coupons)           │
+                             └──────────┬──────────┘
+                                        │ parse_receipt()
+                             ┌──────────▼──────────┐
+                             │  db.py  (SQLite)     │
+                             │  data/lidl.db        │
+                             └──────────┬──────────┘
+                                        │ query functions
+                    ┌───────────────────┼──────────────────┐
+                    │                   │                  │
+           ┌────────▼──────┐   ┌────────▼───────┐  ┌──────▼──────┐
+           │  app.py       │   │  ai.py          │  │  auth.py    │
+           │  Dash UI      │   │  Ollama         │  │  One-time   │
+           │  :8050        │   │  :11434         │  │  login      │
+           └───────────────┘   └────────────────┘  └─────────────┘
+```
+
+## Docker
+
+```bash
+docker build -t lidl-app .
+docker run -p 8050:8050 -v $(pwd)/data:/app/data --env-file .env lidl-app
+```
+
+The `data/` directory and `.env` are not baked into the image — mount them at runtime.
+
+---
+
+## Troubleshooting
+
+### Ollama issues
+- **Model not found:** run `ollama pull llama3.2`
+- **Could not reach Ollama:** run `brew services start ollama` (macOS) or `ollama serve`
+- **Slow responses:** llama3.2 needs ~4 GB RAM; close other applications
+
+### Token and authentication
+- **No LIDL\_REFRESH\_TOKEN found:** run `uv run python src/auth.py` again
+- **Token expired** (after ~90 days): re-run the auth script — it overwrites the old token
+
+### Common errors
+- **No data in tabs:** click ↻ Sync Data first
+- **No store ID configured** on Offers tab: set `LIDL_STORE_ID` in `.env` (see Installation)
+- **Port 8050 in use:** another Dash app is running; kill it or change the port in `src/app.py`
 
 ---
 
