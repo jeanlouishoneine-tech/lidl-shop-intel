@@ -315,16 +315,24 @@ def export_csv(n_clicks: int, time_value: str | None) -> Any:
     return dcc.send_string(buf.getvalue(), filename="lidl_spending.csv")
 
 
+_BASE_STYLE = {"fontFamily": "system-ui, sans-serif", "minHeight": "100vh"}
+_DARK_OVERRIDES: dict[str, Any] = {
+    "background": "#1a1a2e",
+    "color": "#e0e0e0",
+}
+
 @callback(
     Output("app-root", "className"),
+    Output("app-root", "style"),
     Output("theme", "data"),
     Input("theme-toggle-btn", "n_clicks"),
     State("theme", "data"),
     prevent_initial_call=True,
 )
-def toggle_theme(n_clicks: int, current_theme: str) -> tuple[str, str]:
+def toggle_theme(n_clicks: int, current_theme: str) -> tuple[str, dict, str]:
     new_theme = "dark" if current_theme == "light" else "light"
-    return f"theme-{new_theme}", new_theme
+    style = {**_BASE_STYLE, **_DARK_OVERRIDES} if new_theme == "dark" else _BASE_STYLE
+    return f"theme-{new_theme}", style, new_theme
 
 
 @callback(

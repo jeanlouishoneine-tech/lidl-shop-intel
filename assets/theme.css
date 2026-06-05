@@ -1,74 +1,71 @@
-/* ── Light mode (default) ─────────────────────────────────────────────────── */
-.theme-light {
-  background-color: #F8F9FA;
-  color: #212529;
-}
+/* ── Dark mode — all selectors use !important to beat Dash inline styles ──── */
 
-.theme-light .tab-bar,
-.theme-light .content-area {
-  background-color: #F8F9FA;
-}
-
-/* ── Dark mode ────────────────────────────────────────────────────────────── */
-.theme-dark {
-  background-color: #1a1a2e;
-  color: #e0e0e0;
-}
-
-/* Main content padding area */
-.theme-dark > div:last-child {
-  background-color: #1a1a2e !important;
-}
-
-/* Time-filter bar and coupon feedback bar */
-.theme-dark > div:nth-child(5),
-.theme-dark > div:nth-child(6) {
+/* Time-filter bar (second child of app-root, has explicit white inline bg) */
+#app-root.theme-dark > div:nth-child(5) {
   background-color: #16213e !important;
-  border-color: #2a2a4a !important;
+  border-bottom-color: #2a2a4a !important;
   color: #e0e0e0 !important;
 }
 
-/* Tab strip */
-.theme-dark .tab-strip--top {
-  background-color: #16213e !important;
-  border-color: #2a2a4a !important;
+/* Coupon feedback bar */
+#app-root.theme-dark > div:nth-child(6) {
+  background-color: #1a1a2e !important;
 }
 
-.theme-dark .tab--selected {
+/* Tab container + tab content wrapper */
+#app-root.theme-dark > div:nth-child(7),
+#app-root.theme-dark #tab-content {
   background-color: #1a1a2e !important;
   color: #e0e0e0 !important;
 }
 
-.theme-dark .tab {
+/* Dash tab strip */
+#app-root.theme-dark .tab-strip--top {
+  background-color: #16213e !important;
+  border-bottom-color: #2a2a4a !important;
+}
+
+#app-root.theme-dark .tab {
+  background-color: #16213e !important;
   color: #a0a0b0 !important;
-  background-color: #16213e !important;
   border-color: #2a2a4a !important;
 }
 
-/* Tab content + all card divs within */
-.theme-dark #tab-content,
-.theme-dark #tab-content > div {
+#app-root.theme-dark .tab--selected {
   background-color: #1a1a2e !important;
+  color: #e0e0e0 !important;
+  border-top-color: #0050AA !important;
 }
 
 /* Dropdowns */
-.theme-dark .Select-control,
-.theme-dark .Select-menu-outer {
+#app-root.theme-dark .Select-control {
   background-color: #16213e !important;
   border-color: #2a2a4a !important;
+}
+
+#app-root.theme-dark .Select-value-label,
+#app-root.theme-dark .Select-placeholder {
   color: #e0e0e0 !important;
 }
 
-.theme-dark .Select-value-label,
-.theme-dark .Select-placeholder,
-.theme-dark .Select-option {
+#app-root.theme-dark .Select-menu-outer {
+  background-color: #16213e !important;
+  border-color: #2a2a4a !important;
+}
+
+#app-root.theme-dark .Select-option {
+  background-color: #16213e !important;
   color: #e0e0e0 !important;
 }
 
-.theme-dark .Select-option:hover {
+#app-root.theme-dark .Select-option:hover,
+#app-root.theme-dark .Select-option.is-focused {
   background-color: #2a2a4a !important;
 }
 
-/* Note: KPI cards, chart backgrounds, and components with explicit inline styles
-   (background: #FFFFFF, background: CARD_BG) require a full inline-style refactor
-   to fully respond to the theme. The above covers the page shell and navigation. */
+#app-root.theme-dark .Select-arrow {
+  border-top-color: #e0e0e0 !important;
+}
+
+/* Note: KPI cards, chart backgrounds, and buttons with explicit white inline
+   styles require a full inline-style refactor to fully respond to the theme. */
