@@ -177,6 +177,20 @@ def set_coupon_activated(promotion_id: str, activated: bool) -> None:
         )
 
 
+def coupon_id_for_promotion(promotion_id: str) -> str | None:
+    """Return the coupon's own `id` for a given promotion_id, or None if unknown.
+
+    The Lidl activation endpoint keys on the coupon `id`, not the `promotionId`
+    the UI uses everywhere else.
+    """
+    with _conn() as conn:
+        row = conn.execute(
+            "SELECT id FROM coupons WHERE promotion_id = ? AND id != '' LIMIT 1",
+            (promotion_id,),
+        ).fetchone()
+    return row["id"] if row else None
+
+
 def receipt_ids() -> set[str]:
     """Return the set of all stored receipt IDs."""
     with _conn() as conn:

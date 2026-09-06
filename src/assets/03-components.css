@@ -1,0 +1,699 @@
+/* ── Icons ─────────────────────────────────────────────────────────────────
+   Dash 4's html module has no SVG element components (no html.Svg/Path/…),
+   so icons are plain <span>s colored via `background-color: currentColor`
+   and shaped by a CSS mask — no icon-font dependency, and they inherit
+   whatever text color they sit in (including across the theme switch). */
+
+.icon {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  background-color: currentColor;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  vertical-align: -2px;
+  flex-shrink: 0;
+}
+
+.icon--sun {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='4'/%3E%3Cline x1='12' y1='2' x2='12' y2='4'/%3E%3Cline x1='12' y1='20' x2='12' y2='22'/%3E%3Cline x1='4.93' y1='4.93' x2='6.34' y2='6.34'/%3E%3Cline x1='17.66' y1='17.66' x2='19.07' y2='19.07'/%3E%3Cline x1='2' y1='12' x2='4' y2='12'/%3E%3Cline x1='20' y1='12' x2='22' y2='12'/%3E%3Cline x1='4.93' y1='19.07' x2='6.34' y2='17.66'/%3E%3Cline x1='17.66' y1='6.34' x2='19.07' y2='4.93'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='4'/%3E%3Cline x1='12' y1='2' x2='12' y2='4'/%3E%3Cline x1='12' y1='20' x2='12' y2='22'/%3E%3Cline x1='4.93' y1='4.93' x2='6.34' y2='6.34'/%3E%3Cline x1='17.66' y1='17.66' x2='19.07' y2='19.07'/%3E%3Cline x1='2' y1='12' x2='4' y2='12'/%3E%3Cline x1='20' y1='12' x2='22' y2='12'/%3E%3Cline x1='4.93' y1='19.07' x2='6.34' y2='17.66'/%3E%3Cline x1='17.66' y1='6.34' x2='19.07' y2='4.93'/%3E%3C/svg%3E");
+}
+
+.icon--moon {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z'/%3E%3C/svg%3E");
+}
+
+.icon--refresh {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='23 4 23 10 17 10'/%3E%3Cpolyline points='1 20 1 14 7 14'/%3E%3Cpath d='M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='23 4 23 10 17 10'/%3E%3Cpolyline points='1 20 1 14 7 14'/%3E%3Cpath d='M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15'/%3E%3C/svg%3E");
+}
+
+.icon--download {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/%3E%3Cpolyline points='7 10 12 15 17 10'/%3E%3Cline x1='12' y1='15' x2='12' y2='3'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4'/%3E%3Cpolyline points='7 10 12 15 17 10'/%3E%3Cline x1='12' y1='15' x2='12' y2='3'/%3E%3C/svg%3E");
+}
+
+.icon--check {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'/%3E%3C/svg%3E");
+}
+
+.icon--x {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='18' y1='6' x2='6' y2='18'/%3E%3Cline x1='6' y1='6' x2='18' y2='18'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cline x1='18' y1='6' x2='6' y2='18'/%3E%3Cline x1='6' y1='6' x2='18' y2='18'/%3E%3C/svg%3E");
+}
+
+.icon--alert-triangle {
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z'/%3E%3Cline x1='12' y1='9' x2='12' y2='13'/%3E%3Cline x1='12' y1='17' x2='12.01' y2='17'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z'/%3E%3Cline x1='12' y1='9' x2='12' y2='13'/%3E%3Cline x1='12' y1='17' x2='12.01' y2='17'/%3E%3C/svg%3E");
+}
+
+/* Toggle button shows one glyph per theme via CSS alone — no server round
+   trip and no icon swap logic in the callback. */
+.theme-toggle .icon--sun { display: none; }
+#app-root[data-theme="dark"] .theme-toggle .icon--sun { display: inline-block; }
+#app-root[data-theme="dark"] .theme-toggle .icon--moon { display: none; }
+
+/* ── Header ────────────────────────────────────────────────────────────── */
+
+.app-header {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: var(--space-4) 0;
+}
+
+.app-header__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.app-header__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  color: var(--text);
+}
+
+.app-header__logo {
+  width: 22px;
+  height: 22px;
+  color: var(--accent);
+}
+
+.app-header__title {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.app-header__spacer {
+  flex: 1;
+}
+
+.app-header__status {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.app-header__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* ── Buttons ───────────────────────────────────────────────────────────── */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: background-color 0.12s ease, border-color 0.12s ease, color 0.12s ease, opacity 0.12s ease;
+  white-space: nowrap;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn--primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.btn--primary:hover:not(:disabled) { background: var(--accent-strong); }
+.btn--primary:active:not(:disabled) { transform: translateY(0.5px); }
+
+.btn--secondary {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--border);
+}
+.btn--secondary:hover:not(:disabled) { background: var(--surface-2); }
+
+.btn--ghost {
+  background: transparent;
+  color: var(--muted);
+  padding: 6px 8px;
+}
+.btn--ghost:hover:not(:disabled) { background: var(--surface-2); color: var(--text); }
+
+.btn--icon {
+  padding: 7px;
+  border-radius: var(--radius-sm);
+}
+
+.btn--sm {
+  font-size: var(--text-2xs);
+  padding: 3px 9px;
+}
+
+.btn--positive {
+  background: var(--pos-weak);
+  color: var(--pos);
+  border-color: transparent;
+}
+.btn--positive:hover:not(:disabled) { filter: brightness(0.96); }
+
+/* ── Filter bar ────────────────────────────────────────────────────────── */
+
+.filter-bar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: var(--space-3) 0;
+}
+
+.filter-bar__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.coupon-feedback {
+  padding: var(--space-2) 0;
+  min-height: 20px;
+}
+
+.filter-bar__label {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.filter-bar__select {
+  width: 200px;
+}
+
+/* ── Dash dropdown (Dash 4 real classes — not react-select) ───────────── */
+
+.dash-dropdown-trigger {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-family: var(--font-ui);
+  font-size: var(--text-sm);
+  padding: 7px 10px;
+  cursor: pointer;
+  transition: border-color 0.12s ease;
+}
+.dash-dropdown-trigger:hover {
+  border-color: var(--muted);
+}
+.dash-dropdown-value-item {
+  color: var(--text);
+}
+.dash-dropdown-trigger-icon {
+  color: var(--muted);
+}
+.dash-dropdown-content {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-pop);
+  margin-top: 4px;
+  overflow: hidden;
+}
+.dash-dropdown-option {
+  color: var(--text);
+  font-size: var(--text-sm);
+  padding: 7px 10px;
+  cursor: pointer;
+}
+.dash-dropdown-option:hover,
+.dash-dropdown-option.focused {
+  background: var(--surface-2);
+}
+.dash-dropdown-option.selected {
+  background: var(--accent-weak);
+  color: var(--accent);
+  font-weight: 600;
+}
+.dash-dropdown-placeholder {
+  color: var(--muted);
+}
+.dash-dropdown-search {
+  color: var(--text);
+  font-family: var(--font-ui);
+}
+
+/* ── Tabs (Dash 4 default classes: tab-container / tab / tab--selected) ── */
+
+.tabs-container {
+  padding: var(--space-5) 0;
+  background: var(--bg);
+}
+
+.tab-content {
+  margin-top: var(--space-5);
+}
+
+.tab-container {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  gap: var(--space-5);
+}
+
+/* Dash ships its own baseline CSS for .tab-container/.tab/.tab--selected as part
+   of the dcc bundle — a white tab background, and a `flex-direction: column`
+   responsive default below ~600px that stacks tabs full-width vertically. Its
+   selectors are more specific than a bare class (compound/media-scoped), so a
+   same-specificity override here silently loses regardless of assets/ load
+   order. Scoping to #tabs (the dcc.Tabs id) guarantees a win: an ID beats any
+   number of classes. Every property that matters has to be stated explicitly,
+   not just overridden where it differs from the desired look. */
+#tabs.tab-container {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--border);
+  gap: var(--space-6);
+}
+
+#tabs .tab {
+  background: transparent;
+  flex: 0 0 auto;
+  white-space: nowrap;
+  padding: var(--space-3) 2px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.12s ease, border-color 0.12s ease;
+}
+#tabs .tab:hover {
+  color: var(--text);
+}
+#tabs .tab--selected {
+  background: transparent;
+  color: var(--accent);
+  font-weight: 600;
+  border: none;
+  border-bottom: 2px solid var(--accent);
+}
+
+/* ── Cards ─────────────────────────────────────────────────────────────── */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-card);
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.kpi-card {
+  padding: var(--space-4) var(--space-5);
+}
+
+.kpi-card__label {
+  margin: 0;
+  font-size: var(--text-xs);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+}
+
+.kpi-card__value {
+  margin: 6px 0 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-xl);
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+.chart-row {
+  display: flex;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.chart-card {
+  flex: 1;
+  min-width: 320px;
+  padding: var(--space-4);
+}
+
+.chart-card__title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text);
+  padding-left: 4px;
+}
+
+/* ── Section headings ──────────────────────────────────────────────────── */
+
+.section {
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+  padding-bottom: var(--space-2);
+  margin: var(--space-6) 0 var(--space-4);
+  border-bottom: 1px solid var(--border);
+}
+
+/* ── Data tables ───────────────────────────────────────────────────────── */
+
+.table-card {
+  padding: 0;
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.data-table th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-2);
+  color: var(--muted);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  text-align: left;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.data-table td {
+  padding: 9px var(--space-4);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+
+.data-table tbody tr:hover {
+  background: var(--surface-2);
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table td.num,
+.data-table th.num {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.data-table tr.total-row td {
+  border-top: 2px solid var(--text);
+  border-bottom: none;
+  font-weight: 700;
+  padding-top: var(--space-3);
+}
+
+/* ── Deal cards ────────────────────────────────────────────────────────── */
+
+.deal-grid {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.deal-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+  min-width: 190px;
+  flex: 1 1 190px;
+  max-width: 260px;
+  box-shadow: var(--shadow-card);
+}
+
+.deal-card--matched {
+  border-left: 3px solid var(--highlight);
+}
+
+.deal-card__badges {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: var(--space-2);
+  min-height: 18px;
+}
+
+.deal-card__title {
+  font-weight: 600;
+  font-size: var(--text-sm);
+  color: var(--text);
+  margin-bottom: 2px;
+}
+
+.deal-card__desc {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.deal-card__price {
+  margin: var(--space-2) 0;
+  font-family: var(--font-mono);
+}
+
+.deal-card__price-now {
+  font-weight: 700;
+  color: var(--accent);
+  font-size: var(--text-sm);
+}
+
+.deal-card__price-was {
+  text-decoration: line-through;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  margin-left: 6px;
+}
+
+.deal-card__save {
+  color: var(--pos);
+  font-size: var(--text-2xs);
+  margin-left: 6px;
+}
+
+.deal-card__until {
+  font-size: var(--text-2xs);
+  color: var(--muted);
+  margin-top: var(--space-2);
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 10px;
+  line-height: 1.5;
+}
+
+.badge--discount {
+  background: var(--neg-weak);
+  color: var(--neg);
+}
+
+.badge--yours {
+  background: var(--highlight);
+  color: var(--on-highlight);
+}
+
+.badge--save {
+  color: var(--pos);
+  font-weight: 600;
+}
+
+.badge--discount-cell {
+  color: var(--neg);
+  font-weight: 600;
+}
+
+/* ── Empty / error states ──────────────────────────────────────────────── */
+
+.empty-state {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--muted);
+  font-size: var(--text-base);
+  padding: var(--space-5) 0;
+}
+
+.error-card {
+  background: var(--neg-weak);
+  border: 1px solid var(--neg);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+  margin-top: var(--space-4);
+  color: var(--text);
+}
+
+.error-card__message {
+  font-family: var(--font-mono);
+  color: var(--neg);
+  font-size: var(--text-xs);
+  margin: var(--space-1) 0 0;
+}
+
+/* ── Coupon feedback ───────────────────────────────────────────────────── */
+
+.feedback {
+  font-weight: 600;
+  font-size: var(--text-sm);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.feedback--positive { color: var(--pos); }
+.feedback--negative { color: var(--neg); }
+
+/* ── AI insights ───────────────────────────────────────────────────────── */
+
+.ai-card {
+  padding: var(--space-2) var(--space-5) var(--space-4);
+  line-height: 1.6;
+  font-size: var(--text-base);
+}
+.ai-card h1, .ai-card h2, .ai-card h3 {
+  font-size: var(--text-md);
+  margin: var(--space-4) 0 var(--space-2);
+}
+.ai-card p { margin: var(--space-2) 0; }
+.ai-card strong { color: var(--text); }
+
+/* ── Receipt (signature component) ────────────────────────────────────── */
+
+.receipt {
+  position: relative;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-5);
+  font-family: var(--font-mono);
+}
+
+.receipt::before,
+.receipt::after {
+  content: "";
+  position: absolute;
+  left: var(--space-4);
+  right: var(--space-4);
+  height: 8px;
+  background-image: radial-gradient(circle at center, var(--bg) 4.5px, transparent 4.6px);
+  background-size: 14px 8px;
+  background-repeat: repeat-x;
+  background-position: center;
+}
+.receipt::before { top: -4px; }
+.receipt::after { bottom: -4px; }
+
+.receipt + .receipt {
+  margin-top: var(--space-4);
+}
+
+.receipt__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding-bottom: var(--space-3);
+  margin-bottom: var(--space-2);
+  border-bottom: 1px dashed var(--border);
+}
+
+.receipt__store {
+  font-weight: 600;
+  color: var(--text);
+  font-size: var(--text-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.receipt__date {
+  color: var(--muted);
+  font-size: var(--text-xs);
+}
+
+.receipt-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+
+.receipt-table th {
+  text-align: left;
+  color: var(--muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-size: 0.625rem;
+  padding: 0 0 6px;
+  border-bottom: 1px dashed var(--border);
+}
+
+.receipt-table td {
+  padding: 5px 0;
+  border-bottom: 1px dashed var(--border);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.receipt-table tbody tr:last-of-type td {
+  border-bottom: none;
+}
+
+.receipt-table .receipt-discount {
+  color: var(--pos);
+  font-size: 0.625rem;
+  margin-left: 4px;
+}
+
+.receipt-table tr.total-row td {
+  border-top: 3px double var(--text);
+  border-bottom: none;
+  font-weight: 700;
+  padding-top: var(--space-2);
+}
+
+.receipt-table th.num,
+.receipt-table td.num {
+  text-align: right;
+}

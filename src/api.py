@@ -10,6 +10,7 @@ import sys
 from html.parser import HTMLParser
 from pathlib import Path
 
+import requests
 from dotenv import load_dotenv
 from lidlplus_api import LidlPlusApi
 
@@ -137,14 +138,37 @@ def fetch_coupons() -> list[dict]:
         return []
 
 
+# lidlplus-api's own activate/deactivate_coupon return only a bare bool, so a
+# rejection from Lidl is indistinguishable from a bug on our side. These mirror
+# the library's calls exactly but log the HTTP status and body on failure.
+_COUPON_ACTIVATION_URL = "https://coupons.lidlplus.com/app/api/v2/promotions/{cid}/activation"
+
+
 def activate_coupon(coupon_id: str) -> bool:
-    """Activate a coupon by ID via the Lidl Plus API."""
-    return bool(_client().activate_coupon(coupon_id))
+    """Activate a coupon by promotion ID via the Lidl Plus API."""
+    resp = requests.post(
+        _COUPON_ACTIVATION_URL.format(cid=coupon_id),
+        json={"articleSelection": []},
+        headers=_client()._default_headers(iscoupons=True),
+        timeout=10,
+    )
+    if resp.status_code != 200:
+        logger.warning("activate_coupon(%s) failed: HTTP %s — %s",
+                       coupon_id, resp.status_code, resp.text[:300])
+    return resp.status_code == 200
 
 
 def deactivate_coupon(coupon_id: str) -> bool:
-    """Deactivate a coupon by ID via the Lidl Plus API."""
-    return bool(_client().deactivate_coupon(coupon_id))
+    """Deactivate a coupon by promotion ID via the Lidl Plus API."""
+    resp = requests.delete(
+        _COUPON_ACTIVATION_URL.format(cid=coupon_id),
+        headers=_client()._default_headers(iscoupons=True),
+        timeout=10,
+    )
+    if resp.status_code != 200:
+        logger.warning("deactivate_coupon(%s) failed: HTTP %s — %s",
+                       coupon_id, resp.status_code, resp.text[:300])
+    return resp.status_code == 200
 
 
 # ── receipt parsing ──────────────────────────────────────────────────────────
