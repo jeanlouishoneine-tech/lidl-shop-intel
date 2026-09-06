@@ -1,0 +1,95 @@
+/* ── Design tokens ─────────────────────────────────────────────────────────
+   Light values are the base case on :root, so every element — including
+   html/body outside the app's own tree — can resolve them. Dark values are
+   layered on top under #app-root[data-theme="dark"]; the theme-toggle
+   callback sets that attribute directly (a Dash wildcard `data-*` prop), no
+   clientside JS needed. The override is scoped to #app-root (never :root)
+   because Dash can only set attributes on components in its own tree, never
+   on <html> itself — but since #app-root wraps 100% of the rendered app,
+   that's every element that actually needs to re-theme.
+   Everything downstream — components, Plotly templates via `_colors()` —
+   reads these custom properties rather than repeating hex literals. */
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+
+:root {
+  color-scheme: light;
+
+  /* type */
+  --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Consolas, monospace;
+
+  --text-2xs: 0.6875rem;   /* 11px — eyebrow labels, badges */
+  --text-xs:  0.75rem;     /* 12px — KPI labels, table meta */
+  --text-sm:  0.8125rem;   /* 13px — table body, buttons */
+  --text-base:0.875rem;    /* 14px — body copy */
+  --text-md:  1rem;        /* 16px — card titles */
+  --text-lg:  1.25rem;     /* 20px — chart headings */
+  --text-xl:  1.75rem;     /* 28px — KPI values */
+  --text-2xl: 2.25rem;     /* 36px — unused headroom */
+
+  /* spacing */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+
+  --shadow-card: 0 1px 2px rgba(16, 24, 40, 0.06), 0 1px 3px rgba(16, 24, 40, 0.06);
+  --shadow-pop: 0 4px 12px rgba(16, 24, 40, 0.12);
+
+  /* colour — light */
+  --bg: #EEF1F5;
+  --surface: #FFFFFF;
+  --surface-2: #F1F3F6;
+  --text: #16191F;
+  --muted: #6B7280;
+  --border: #E5E7EB;
+
+  --accent: #0A4C93;
+  --accent-strong: #073761;
+  --accent-weak: #EAF1F9;
+  --on-accent: #FFFFFF;
+
+  --highlight: #F5C518;
+  --on-highlight: #16191F;
+
+  --pos: #15803D;
+  --pos-weak: #EAF7EF;
+  --neg: #DC2626;
+  --neg-weak: #FDECEC;
+
+  --focus-ring: #0A4C93;
+}
+
+#app-root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0C0E12;
+  --surface: #14171D;
+  --surface-2: #1A1E26;
+  --text: #E6E8EB;
+  --muted: #9AA1AC;
+  --border: #262B33;
+
+  --accent: #4D94E0;
+  --accent-strong: #7CB3EA;
+  --accent-weak: #162434;
+  --on-accent: #0C0E12;
+
+  --highlight: #E8BE2E;
+  --on-highlight: #16191F;
+
+  --pos: #4ADE80;
+  --pos-weak: #123420;
+  --neg: #F87171;
+  --neg-weak: #3A1616;
+
+  --focus-ring: #7CB3EA;
+}

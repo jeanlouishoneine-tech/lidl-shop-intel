@@ -129,8 +129,7 @@ src/
   auth.py   # One-time authentication script
   db.py     # SQLite persistence and queries
   ai.py     # Ollama integration
-assets/
-  theme.css # Dark mode CSS
+  assets/   # CSS design system (tokens, base, components) — auto-loaded by Dash
 data/
   lidl.db   # Local SQLite database (git-ignored)
 tests/
